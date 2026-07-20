@@ -48,8 +48,8 @@ gates:                           # pass/fail predicates (see "Gate kinds" below)
   - { id: tests_pass, kind: command, run: "make test" }
 
 phases:                          # the pipeline — at least one
-  - { id: spec,   skill: spec, role: implementer, gate: tests_pass, onFail: { retry: 2 } }
-  - { id: review, skill: spec, role: reviewer,    onFail: halt }
+  - { id: spec,   skill: spec, role: implementer,                   onFail: halt }
+  - { id: review, skill: note, role: reviewer,    gate: tests_pass, onFail: { retry: 2 } }
 ```
 
 **Field reference**
@@ -100,10 +100,10 @@ unknown-skill, unknown-role, duplicate-phase, missing-kind, and path-escape
 errors. With a codeoid checkout beside this repo:
 
 ```bash
+# run from the codeoid repo root
 bun -e 'import { loadPack } from "./src/daemon/pipeline/pack";
   const p = loadPack("<abs path>/packs/<pack-id>");
-  console.log(p.id, Object.keys(p.roles), p.pipeline.map(x => `${x.id}[${x.role}]`));' \
-  # run from the codeoid repo root
+  console.log(p.id, Object.keys(p.roles), p.pipeline.map(x => x.id + "[" + x.role + "]"));'
 ```
 
 Expect it to print your id, roles, and phase→role mapping with no throw.

@@ -1,0 +1,348 @@
+#!/bin/sh
+# Idempotent installer for the provider-agnostic delegation CLIs.
+# POSIX sh only — no bashisms, no GNU-specific flags.
+set -eu
+
+# Resolve REPO_ROOT to the CANONICAL repo, not any worktree (e.g. Claude Code's
+# per-session `.claude/worktrees/<id>` or AIF pipeline `.worktrees/REQ-xxx`).
+# Wrappers must point at a path that survives session/pipeline cleanup. We use
+# `git rev-parse --git-common-dir` which returns the canonical .git directory
+# regardless of which worktree is calling — its parent is the canonical repo
+# root. Fall back to the script-relative path if git isn't available.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+COMMON_DIR="$(git -C "$SCRIPT_DIR" rev-parse --git-common-dir 2>/dev/null || true)"
+if [ -n "$COMMON_DIR" ]; then
+    case "$COMMON_DIR" in
+        /*) ;;
+        *)  COMMON_DIR="$(cd "$SCRIPT_DIR" && cd "$COMMON_DIR" 2>/dev/null && pwd || echo "")" ;;
+    esac
+fi
+if [ -n "$COMMON_DIR" ] && [ -d "$COMMON_DIR" ]; then
+    REPO_ROOT="$(dirname "$COMMON_DIR")"
+else
+    # SCRIPT_DIR is <repo>/tools/delegate, so the repo root is two levels up.
+    REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+fi
+# Sanity check — the resolved REPO_ROOT must contain tools/delegate/aif-read.
+# The git-derived root can be an ENCLOSING repo when this checkout is nested
+# inside another git repo; fall back to the script-anchored root in that case.
+if [ ! -f "$REPO_ROOT/tools/delegate/aif-read" ]; then
+    REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+fi
+if [ ! -f "$REPO_ROOT/tools/delegate/aif-read" ]; then
+    echo "ERROR: could not resolve canonical repo root (tried $REPO_ROOT). Re-run install.sh from the repo's tools/delegate/ directory." >&2
+    exit 1
+fi
+VENV_DIR="$HOME/.claude/delegate-venv"
+# Legacy venv name (REQ-522 rename) — removed on upgrade so it does not linger.
+LEGACY_VENV_DIR="$HOME/.claude/kimi-venv"
+BIN_DIR="$HOME/bin"
+PATH_MARKER="# added by ai-factory delegate install.sh"
+
+# Determine the user's persistent login shell — fall back to $SHELL.
+# `dscl` is macOS-only; guard with command -v so the script works on Linux too.
+# `|| true` keeps set -eu from aborting if dscl exits nonzero on a fluke.
+USER_NAME="${USER:-$(id -un 2>/dev/null || echo "")}"
+LOGIN_SHELL=""
+if command -v dscl >/dev/null 2>&1 && [ -n "$USER_NAME" ]; then
+    LOGIN_SHELL=$(dscl . -read "/Users/$USER_NAME" UserShell 2>/dev/null | awk '{print $2}' || true)
+fi
+[ -z "$LOGIN_SHELL" ] && LOGIN_SHELL="${SHELL:-}"
+case "$(basename "$LOGIN_SHELL")" in
+    zsh*)  RC="$HOME/.zshrc" ;;
+    bash*) RC="$HOME/.bash_profile" ;;
+    *)     RC="" ;;
+esac
+
+# Provider-neutral CLIs (REQ-515 BR-1; REQ-522 BR-3 removed the legacy
+# ask-kimi / kimi-write shims — use aif-read / aif-write).
+CLIS="aif-read aif-write extract-chat"
+# Legacy shim names removed on upgrade so stale wrappers do not shadow PATH.
+LEGACY_SHIMS="ask-kimi kimi-write"
+
+# --- CLAUDE.md routing block: pre-validate before any side effects ------
+# REQ-426 verify caught: the original placement of this block ran AFTER venv
+# creation, pip install, and launchctl bootout — so a tampered routing file
+# would still incur all those side effects before the script aborted. Move
+# the validation up here so a hash-mismatch is the first thing we hit.
+#
+# **Security model**: the SHA-256 pin enforces *review visibility*, not
+# cryptographic proof. An attacker who controls a PR can update both the
+# routing .txt and the .sha256 atomically — but the diff is then visible to
+# reviewers as TWO file changes side-by-side, which is exactly the gate we
+# want a human to consciously approve. This pin is review-discipline, not
+# crypto.
+ROUTING_TXT="$REPO_ROOT/tools/delegate/claude-md-routing.txt"
+ROUTING_SHA="$REPO_ROOT/tools/delegate/claude-md-routing.txt.sha256"
+
+if [ ! -f "$ROUTING_TXT" ] || [ ! -f "$ROUTING_SHA" ]; then
+    echo "ERROR: canonical routing files missing — expected:" >&2
+    echo "  $ROUTING_TXT" >&2
+    echo "  $ROUTING_SHA" >&2
+    exit 1
+fi
+
+if command -v shasum >/dev/null 2>&1; then
+    HASH_CMD="shasum -a 256"
+elif command -v sha256sum >/dev/null 2>&1; then
+    HASH_CMD="sha256sum"
+else
+    echo "ERROR: no SHA-256 tool found (tried shasum, sha256sum). Install one and retry." >&2
+    exit 1
+fi
+
+# Read once, hash the captured bytes, and append the SAME captured bytes
+# downstream — closes the file-read-twice TOCTOU window where an attacker
+# could swap the file between the hash check and the cat-into-CLAUDE.md.
+ROUTING_CONTENT=$(cat "$ROUTING_TXT")
+ACTUAL_HASH=$(printf '%s\n' "$ROUTING_CONTENT" | $HASH_CMD | awk '{print $1}')
+PINNED_HASH=$(awk '{print $1; exit}' "$ROUTING_SHA")
+
+if [ "$ACTUAL_HASH" != "$PINNED_HASH" ]; then
+    echo "ERROR: claude-md-routing.txt hash mismatch — aborting before ANY install side effects" >&2
+    echo "  Pinned:   $PINNED_HASH" >&2
+    echo "  Computed: $ACTUAL_HASH" >&2
+    echo "  If this change is intentional, update tools/delegate/claude-md-routing.txt.sha256 in the same commit." >&2
+    exit 1
+fi
+
+# --- venv ---------------------------------------------------------------
+if [ ! -d "$VENV_DIR" ]; then
+    echo "Creating venv at $VENV_DIR"
+    mkdir -p "$HOME/.claude"
+    python3 -m venv "$VENV_DIR"
+fi
+echo "Installing pinned dependencies from requirements.txt into venv"
+"$VENV_DIR/bin/pip" install -r "$REPO_ROOT/tools/delegate/requirements.txt"
+
+# Remove the legacy Kimi-named venv on upgrade (REQ-522) so it does not linger.
+if [ -d "$LEGACY_VENV_DIR" ] && [ "$LEGACY_VENV_DIR" != "$VENV_DIR" ]; then
+    echo "Removing legacy venv at $LEGACY_VENV_DIR"
+    rm -rf "$LEGACY_VENV_DIR"
+fi
+
+# --- ~/bin wrappers (regenerated each run) ------------------------------
+# Note: wrappers are path-stamped to this repo's location ($REPO_ROOT).
+# If you move the toolkit clone, re-run this script to regenerate them.
+mkdir -p "$BIN_DIR"
+for name in $CLIS; do
+    wrapper="$BIN_DIR/$name"
+    cat > "$wrapper" <<EOF
+#!/bin/sh
+exec "$VENV_DIR/bin/python3" "$REPO_ROOT/tools/delegate/$name" "\$@"
+EOF
+    chmod +x "$wrapper"
+    echo "Wrote wrapper $wrapper (-> $REPO_ROOT/tools/delegate/$name)"
+done
+
+# Remove the legacy back-compat shims on upgrade (REQ-522 BR-3): ask-kimi /
+# kimi-write are retired in favor of aif-read / aif-write. Delete any stale
+# ~/bin wrappers a previous install wrote so they do not shadow PATH.
+for name in $LEGACY_SHIMS; do
+    wrapper="$BIN_DIR/$name"
+    if [ -e "$wrapper" ]; then
+        rm -f "$wrapper"
+        echo "Removed legacy shim $wrapper (use aif-read / aif-write)"
+    fi
+done
+
+# --- PATH entry in shell rc (marker-guarded) ----------------------------
+# Idempotency is keyed solely on the marker line — do not also gate on the
+# current shell's $PATH, since a non-login shell may not have run the rc yet.
+if [ -n "$RC" ]; then
+    if [ -f "$RC" ] && grep -F "$PATH_MARKER" "$RC" >/dev/null 2>&1; then
+        echo "PATH entry already present in $RC"
+    else
+        echo "Appending ~/bin to PATH in $RC"
+        {
+            echo ""
+            echo "$PATH_MARKER"
+            echo 'export PATH="$HOME/bin:$PATH"'
+        } >> "$RC"
+    fi
+else
+    echo "Login shell $(basename "$LOGIN_SHELL") not auto-supported — add these lines manually to your shell rc:"
+    echo "    $PATH_MARKER"
+    echo '    export PATH="$HOME/bin:$PATH"'
+    echo '    export MOONSHOT_API_KEY="..."'
+fi
+
+# --- launchctl setenv for GUI-launched apps (macOS only) ---------------
+# Fast-path for the current boot session (the LaunchAgent below makes this
+# permanent across future reboots, but the agent only fires at next login).
+if command -v launchctl >/dev/null 2>&1; then
+    if [ -n "${MOONSHOT_API_KEY:-}" ]; then
+        launchctl setenv MOONSHOT_API_KEY "$MOONSHOT_API_KEY"
+        echo "Exported MOONSHOT_API_KEY into launchctl session env (current boot — LaunchAgent below handles future reboots)"
+    else
+        echo "Skipping launchctl setenv: MOONSHOT_API_KEY not set in this shell"
+    fi
+fi
+
+# --- LaunchAgent persistence (macOS only) -------------------------------
+# Installs a LaunchAgent that runs at every user login and re-exports
+# MOONSHOT_API_KEY into the launchctl session env, surviving reboots and
+# Claude Code restarts. The plist itself never contains the key value —
+# the agent invokes a helper script that reads from the rc file at runtime.
+#
+# Security note: `launchctl setenv` puts the key in the session env, where
+# any GUI app the user launches can read it via `launchctl getenv` or its
+# own process env. This is the deliberate trade-off of the feature (enables
+# GUI-launched Claude Code to see the key). A compromised user-space process
+# already has access to ~/.zshrc anyway.
+if command -v launchctl >/dev/null 2>&1; then
+    AGENT_LABEL="com.ai-factory.delegate-setenv"
+    AGENT_PLIST="$HOME/Library/LaunchAgents/$AGENT_LABEL.plist"
+    AGENT_HELPER="$HOME/.claude/delegate-launchctl-setenv.sh"
+    HELPER_SRC="$REPO_ROOT/tools/delegate/delegate-launchctl-setenv.sh.in"
+    PLIST_SRC="$REPO_ROOT/tools/delegate/com.ai-factory.delegate-setenv.plist.in"
+
+    # REQ-522 BR-8 migration: a prior install left a Kimi-labeled LaunchAgent.
+    # Unload and remove it BEFORE loading the renamed agent so the two do not
+    # both run (validate-before-mutate, LESSON-017). Idempotent on a fresh box.
+    # The historical label shipped by the upstream adlc-toolkit installer —
+    # this is what could actually be loaded on an upgraded machine.
+    LEGACY_AGENT_LABEL="com.adlc-toolkit.kimi-setenv"
+    LEGACY_AGENT_PLIST="$HOME/Library/LaunchAgents/$LEGACY_AGENT_LABEL.plist"
+    LEGACY_AGENT_HELPER="$HOME/.claude/kimi-launchctl-setenv.sh"
+    if [ -e "$LEGACY_AGENT_PLIST" ]; then
+        launchctl bootout "gui/$(id -u)" "$LEGACY_AGENT_PLIST" 2>/dev/null || true
+        launchctl unload "$LEGACY_AGENT_PLIST" 2>/dev/null || true
+        rm -f "$LEGACY_AGENT_PLIST" "$LEGACY_AGENT_HELPER"
+        echo "Migrated: removed legacy LaunchAgent $LEGACY_AGENT_LABEL"
+    fi
+
+    mkdir -p "$HOME/Library/LaunchAgents"
+    mkdir -p "$HOME/Library/Logs"
+
+    # Ensure existing telemetry log is owner-readable only (REQ-424 BR-11).
+    # Idempotent — emit-telemetry.sh creates the log via umask 077 on first write,
+    # but if a prior install or manual touch left it world-readable, fix it here.
+    TELEMETRY_LOG="$HOME/Library/Logs/aif-skill-telemetry.log"
+    if [ -f "$TELEMETRY_LOG" ]; then
+        chmod 600 "$TELEMETRY_LOG"
+        echo "Ensured $TELEMETRY_LOG has mode 0600"
+    fi
+
+    # ORDER MATTERS: bootout FIRST (so no live agent is mid-execution while
+    # we overwrite its files), THEN write files, THEN bootstrap (loads new).
+    launchctl bootout "gui/$(id -u)" "$AGENT_PLIST" 2>/dev/null || true
+
+    # Write helper script (copy — plist invokes via /bin/sh <script>; +x harmless but kept for direct-invoke debugging)
+    cp "$HELPER_SRC" "$AGENT_HELPER"
+    chmod +x "$AGENT_HELPER"
+
+    # Write plist with $HOME substituted (plist needs absolute path, not $HOME var)
+    sed "s|__HOME__|$HOME|g" "$PLIST_SRC" > "$AGENT_PLIST"
+
+    # Validate the plist BEFORE attempting to load — catches a malformed
+    # template / failed substitution at install time rather than at next login.
+    if ! plutil -lint "$AGENT_PLIST" >/dev/null 2>&1; then
+        echo "WARNING: generated plist at $AGENT_PLIST failed plutil -lint — agent NOT loaded."
+        echo "  This is a bug in install.sh's plist template substitution. File an issue with the contents of $AGENT_PLIST."
+    elif launchctl bootstrap "gui/$(id -u)" "$AGENT_PLIST" 2>/dev/null; then
+        echo "Loaded LaunchAgent $AGENT_LABEL (persistent across reboots)"
+    else
+        # Fall back to legacy load form on older macOS
+        if launchctl load "$AGENT_PLIST" 2>/dev/null; then
+            echo "Loaded LaunchAgent $AGENT_LABEL (persistent across reboots) [legacy form]"
+        else
+            echo "WARNING: could not load LaunchAgent at $AGENT_PLIST — env will NOT persist across reboots."
+            echo "  Manual workaround: run 'launchctl setenv MOONSHOT_API_KEY \"\$MOONSHOT_API_KEY\"' after each reboot."
+        fi
+    fi
+fi
+
+# --- MOONSHOT_API_KEY reminder (printed, never written) -----------------
+echo ""
+REMINDER_RC="${RC:-your shell rc file}"
+echo "Reminder: add the following to $REMINDER_RC (not done automatically):"
+echo '  export MOONSHOT_API_KEY="<your-key-here>"'
+if [ -n "${MOONSHOT_API_KEY:-}" ]; then
+    echo "  (MOONSHOT_API_KEY is currently set in this shell)"
+else
+    echo "  (MOONSHOT_API_KEY is currently NOT set in this shell)"
+fi
+
+# --- CLAUDE.md routing block (marker-guarded append) --------------------
+# Hash-validated above (immediately after CLIS, before any side effects).
+# We re-use the captured ROUTING_CONTENT rather than re-reading the file —
+# this closes the file-read-twice TOCTOU window.
+CLAUDE_MD="$HOME/.claude/CLAUDE.md"
+mkdir -p "$HOME/.claude"
+
+# Idempotency anchor: the new block uses `delegate-routing:start` (REQ-522).
+# An existing consumer install may still carry the legacy `kimi-delegation:start`
+# marker — recognize BOTH so an upgrade does not double-append (ADR-6). The
+# legacy marker is a recognized INPUT string only; the freshly written block
+# always uses the de-branded marker. The block CONTENT is provider-neutral.
+if [ -f "$CLAUDE_MD" ] && \
+   { grep -q 'delegate-routing:start' "$CLAUDE_MD" || grep -q 'kimi-delegation:start' "$CLAUDE_MD"; }; then
+    echo "Delegation routing block already present in $CLAUDE_MD"
+else
+    echo "Appending delegation routing block to $CLAUDE_MD"
+    {
+        echo ""
+        printf '%s\n' "$ROUTING_CONTENT"
+    } >> "$CLAUDE_MD"
+fi
+
+# --- settings.json allowlist merge --------------------------------------
+SETTINGS="$HOME/.claude/settings.json"
+if [ -f "$SETTINGS" ]; then
+    cp "$SETTINGS" "$SETTINGS.bak"
+    echo "Backed up $SETTINGS to $SETTINGS.bak"
+    if "$VENV_DIR/bin/python3" - "$SETTINGS" <<'PYEOF'
+import json, os, sys
+path = sys.argv[1]
+try:
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+except json.JSONDecodeError as exc:
+    sys.exit(f"{path} is not valid JSON ({exc}); not modified — fix it and re-run.")
+if not isinstance(data, dict):
+    sys.exit(f"{path} top level is not a JSON object; not modified.")
+perms = data.get("permissions")
+if not isinstance(perms, dict):
+    perms = {}
+    data["permissions"] = perms
+allow = perms.get("allow")
+if not isinstance(allow, list):
+    allow = []
+    perms["allow"] = allow
+for entry in (
+    "Bash(aif-read:*)", "Bash(aif-write:*)", "Bash(extract-chat:*)",
+):
+    if entry not in allow:
+        allow.append(entry)
+# REQ-522 BR-3: prune the retired legacy-shim allow entries if a prior install
+# added them, so the allowlist matches the installed command set.
+for stale in ("Bash(ask-kimi:*)", "Bash(kimi-write:*)"):
+    if stale in allow:
+        allow.remove(stale)
+tmp = path + ".tmp"
+with open(tmp, "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+os.replace(tmp, path)
+PYEOF
+    then
+        echo "Merged delegation allowlist entries into $SETTINGS"
+    else
+        echo "WARNING: could not update $SETTINGS — add these to its permissions.allow manually:"
+        echo '  "Bash(aif-read:*)", "Bash(aif-write:*)", "Bash(extract-chat:*)"'
+    fi
+else
+    echo ""
+    echo "Note: $SETTINGS does not exist — not creating it."
+    echo "Add these to its permissions.allow list manually:"
+    echo '  "Bash(aif-read:*)", "Bash(aif-write:*)", "Bash(extract-chat:*)"'
+fi
+
+# --- next steps ---------------------------------------------------------
+echo ""
+if [ -n "${RC:-}" ]; then
+    echo "Done. Restart your shell (or 'source $RC') and set MOONSHOT_API_KEY."
+else
+    echo "Done. Add the lines above to your shell rc, then restart your shell, and set MOONSHOT_API_KEY."
+fi

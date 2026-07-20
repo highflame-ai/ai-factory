@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "_comment": "ai-factory shared Claude Code settings \u2014 team-wide, committed per repo. Source of truth: skills/templates/settings.example.json. Distributed via tools/fleet/distribute-settings.sh. Per-developer overrides go in .claude/settings.local.json (git-ignored).",
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(pwd:*)",
+      "Bash(cd:*)",
+      "Bash(mkdir:*)",
+      "Bash(touch:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git mv:*)",
+      "Bash(git rm:*)",
+      "Bash(git branch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git stash:*)",
+      "Bash(git worktree:*)",
+      "Bash(git fetch:*)",
+      "Bash(git pull:*)",
+      "Bash(go build:*)",
+      "Bash(go test:*)",
+      "Bash(go vet:*)",
+      "Bash(go mod:*)",
+      "Bash(gofmt:*)",
+      "Bash(goimports:*)",
+      "Bash(golangci-lint:*)",
+      "Bash(go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm lint:*)",
+      "Bash(pnpm format:*)",
+      "Bash(pnpm format:check:*)",
+      "Bash(pnpm type-check:*)",
+      "Bash(pnpm build:*)",
+      "Bash(pnpm test:*)",
+      "Bash(pnpm exec:*)",
+      "Bash(ruff format:*)",
+      "Bash(ruff check:*)",
+      "Bash(pytest:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(make build:*)",
+      "Bash(make test:*)",
+      "Bash(make lint:*)",
+      "Bash(make vet:*)",
+      "Bash(make swagger:*)",
+      "Bash(make docker-build-local:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker logs:*)",
+      "Bash(docker compose ps:*)",
+      "Bash(docker compose logs:*)",
+      "Bash(psql --help:*)"
+    ],
+    "deny": [
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf /:*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -x \"$HOME/.claude/aif-hooks/session-start-skills.sh\" ]; then \"$HOME/.claude/aif-hooks/session-start-skills.sh\"; fi"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -x \"$HOME/.claude/aif-hooks/go-format.sh\" ]; then \"$HOME/.claude/aif-hooks/go-format.sh\"; fi"
+          },
+          {
+            "type": "command",
+            "command": "if [ -x \"$HOME/.claude/aif-hooks/ts-format.sh\" ]; then \"$HOME/.claude/aif-hooks/ts-format.sh\"; fi"
+          },
+          {
+            "type": "command",
+            "command": "if [ -x \"$HOME/.claude/aif-hooks/py-format.sh\" ]; then \"$HOME/.claude/aif-hooks/py-format.sh\"; fi"
+          },
+          {
+            "type": "command",
+            "command": "if [ -x \"$HOME/.claude/aif-hooks/rust-format.sh\" ]; then \"$HOME/.claude/aif-hooks/rust-format.sh\"; fi"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -x \"$HOME/.claude/aif-hooks/secret-scan.sh\" ]; then \"$HOME/.claude/aif-hooks/secret-scan.sh\"; fi"
+          },
+          {
+            "type": "command",
+            "command": "if [ -x \"$HOME/.claude/aif-hooks/commit-prefix-check.sh\" ]; then \"$HOME/.claude/aif-hooks/commit-prefix-check.sh\"; fi"
+          },
+          {
+            "type": "command",
+            "command": "if [ -x \"$HOME/.claude/aif-hooks/precommit-gate.sh\" ]; then \"$HOME/.claude/aif-hooks/precommit-gate.sh\"; fi"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -x \"$HOME/.claude/aif-hooks/session-reflect.sh\" ]; then \"$HOME/.claude/aif-hooks/session-reflect.sh\"; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

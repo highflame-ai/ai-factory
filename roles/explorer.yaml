@@ -1,0 +1,9 @@
+name: explorer
+summary: Cheap, fast codebase mapping — blast radius, precedents, integration surfaces. Returns structure, not judgments.
+write: false
+network: read-only   # remote code search (gh search code) when a repo isn't cloned locally
+envelope:
+  - read
+  - grep
+  - glob
+  - bash        # read-only enumeration (git ls-files, wc); some explorers use bash only

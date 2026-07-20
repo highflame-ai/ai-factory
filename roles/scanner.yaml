@@ -1,0 +1,9 @@
+name: scanner
+summary: Scheduled/on-demand scans for optimization opportunities (cost, latency, DB). Findings only.
+write: false
+network: false
+envelope:
+  - read
+  - grep
+  - glob
+  - bash        # read-only probes and measurements

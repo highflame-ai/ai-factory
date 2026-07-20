@@ -1,0 +1,162 @@
+# Conventions — AIF Toolkit
+
+## Code is markdown, not code
+
+Every skill and agent is a markdown file. No TypeScript, no Python, no package.json. Claude Code interprets the markdown at invocation time. This matters:
+
+- **No build step**: edits take effect immediately via the symlink install
+- **No test runner**: "tests" are dogfooding — invoke the skill on a real REQ and see if it produces the expected artifacts
+- **Linting is minimal**: markdown formatting, frontmatter validity, and bash syntax in `!`...`` macros. Nothing else.
+
+**Exception — `tools/`:** the `tools/` directory may contain real executable code (e.g. `tools/delegate/`, a set of Python delegation CLIs with its own `install.sh`). It is exempt from the markdown-only rule and from the symlink-install model — those tools are installed by running their `install.sh`, not via the skills symlink. Each `tools/<name>/` subdirectory carries its own README.
+
+## File and directory naming
+
+- Skill directories: lowercase, single word or hyphenated (`spec`, `bugfix`, `template-drift`)
+- Skill files: always `SKILL.md` (uppercase, singular) inside the skill directory
+- Agent files: `agents/<agent-name>.md`, hyphenated lowercase
+- Templates: `templates/<artifact>-template.md`
+- IDs: `REQ-xxx` (zero-padded to 3 digits), `TASK-yyy`, `BUG-zzz`, `LESSON-nnn` — always uppercase prefix, always 3 digits minimum
+- Slugs: lowercase kebab-case, ≤6 words, no dates, no bare numbers
+
+## Frontmatter conventions
+
+All artifact types use YAML frontmatter. Dates in ISO format (`YYYY-MM-DD`). Arrays use JSON inline syntax (`tags: [a, b, c]`). Status enum values are lowercase strings.
+
+**Required vs optional** varies per template. Generally: `id`, `title`, `status`, `created` are required; everything else is optional. When adding new fields, prefer additive — do not rename existing fields without a migration plan.
+
+## Ethos injection pattern
+
+Every skill begins with:
+
+```markdown
+## Ethos
+
+!`sh .aif/partials/ethos-include.sh 2>/dev/null || sh ~/.claude/skills/partials/ethos-include.sh`
+```
+
+The partial itself emits the canonical fallback chain (consumer-project ETHOS.md first, then toolkit-root, then graceful "No ethos found" message). The two-level fallback at the call site (project `partials/` first, then global `~/.claude/skills/partials/`) ensures the macro still works in consumer projects that haven't re-run `/init` after the toolkit shipped the partial. Never hardcode the ethos body inside a skill — always source the partial.
+
+## Delegation pattern (provider-agnostic)
+
+Skills that delegate bulk reads or drafting to the configured delegate (`aif-read` /
+`aif-write`) MUST source the shared gate predicate rather than inlining
+`command -v aif-read >/dev/null 2>&1 && …`. The canonical predicate lives in
+`partials/delegate-gate.sh` and defines `aif_delegate_gate_check()` with a 0/1/2 contract
+(the legacy `kimi-gate.sh` back-compat alias has been retired):
+
+```sh
+. .aif/partials/delegate-gate.sh 2>/dev/null || . ~/.claude/skills/partials/delegate-gate.sh
+aif_delegate_gate_check; gate=$?
+case $gate in
+  0) ;;  # delegated
+  1) ;;  # disabled (AIF_DISABLE_DELEGATE=1, or not opted-in — BR-11)
+  2) ;;  # unavailable (aif-read not on PATH)
+esac
+```
+
+The reason is exported as `AIF_DELEGATE_GATE_REASON`. Delegation is **opt-in** (off by
+default on fresh installs) — enabled by `delegate.enabled: true` in
+`~/.claude/aif/config.yml`, `AIF_DELEGATE_ENABLED=1`, or an already-set legacy
+`KIMI_API_KEY`/`MOONSHOT_API_KEY` (key continuity).
+
+Per-step telemetry state crosses the create → gate → invoke → resolve fenced blocks via
+the **flag-file sidecar** (`partials/delegate-tools-path.sh`'s `skill-flag.sh mark`/`read`),
+never via shell variables, because fenced blocks do not share shell state.
+The shared resolver `_aif_emit_step_telemetry <skill> <step>` in
+`partials/emit-step-telemetry.sh` reads those marks back and emits one telemetry record.
+
+See `partials/delegate-gate.md` for the full protocol — return-code contract, the
+canonical stderr emit templates parameterized by `<skill>` and `<purpose>`, and the BR-4
+one-line-per-invocation rule. Per-skill stderr messages and fallback bodies stay inline at
+the call site; only the predicate is shared.
+
+## Forge adapter (provider-agnostic PR operations)
+
+Skills that touch the pull-request lifecycle MUST route every PR operation through
+the forge adapter (`partials/forge.sh`), never by shelling out to `gh pr` directly.
+This makes a project portable between GitHub and Azure DevOps as a config change.
+Source the sourceable partial and call the op **in the same fenced block** (the
+cross-fence rule above):
+
+```sh
+. .aif/partials/forge.sh 2>/dev/null || . ~/.claude/skills/partials/forge.sh
+out=$(aif_forge_pr_view "$pr" --fields state,url); rc=$?
+```
+
+The op set is `aif_forge_pr_{create,ready,edit,view,list,merge,comment}`. The
+GitHub backend (`gh`) is byte-compatible with the previous direct calls; the Azure
+DevOps backend uses `az repos`. Provider resolution is per-project `.aif/config.yml`
+`forge.provider` > machine config > `auto` (origin-URL detection; unrecognized host
+fails loud). Results/errors are normalized to one vocabulary (`state ∈
+{OPEN,MERGED,CLOSED}`; error classes `auth-missing` | `pr-not-found` |
+`merge-blocked-by-policy` | `feature-unsupported` | `network`, with raw backend stderr
+preserved beneath the class). `forge.auth` stores a credential **source name** only
+(`gh`/`az`/an env-var NAME holding a PAT) — never a key value (a key-shaped value is
+refused). Two ops stay direct on purpose: `gh pr diff` (local read-only convenience)
+and `gh pr checks` (CI-status polling, out of scope). The `tools/lint-skills`
+`forge-direct-gh` check rejects any new direct `gh pr <op>` in a SKILL.md shell fence.
+Full contract: `partials/forge.md`.
+
+## Context loading pattern
+
+Skills load context via `!bash` macros under a `## Context` section. Use the same fallback chain: prefer consumer-project `.aif/...`, fall back to `~/.claude/skills/...`. Example:
+
+```markdown
+- Conventions: !`cat .aif/context/conventions.md 2>/dev/null || echo "No conventions found"`
+```
+
+Never hardcode paths; always allow the skill to degrade gracefully when a file is absent.
+
+For shared multi-line snippets that would otherwise duplicate across many SKILL.md files, extract a POSIX shell partial under `partials/<name>.sh` and source it from each call site (see "Ethos injection pattern" above and the architecture.md "Partials" subsection). This keeps each SKILL.md focused on its own instructions and ensures updates land everywhere consistently.
+
+## Prerequisites block
+
+Every skill that depends on the `.aif/` scaffold must have a `## Prerequisites` section that stops with a clear "run `/init` first" message if required files are missing. Do not silently produce broken output when context is absent.
+
+## Bash in skills
+
+- Keep bash minimal — prefer Claude's own tool calls (Read, Grep, Glob, Edit, Write) over shell
+- Bash is fine for deterministic operations: counter increments, directory creation, git commands, file globbing
+- **POSIX-only**: no GNU-specific flags. Use `grep -oE` (not `-oP`), use `mkdir` locks (not `flock`), use `sed 's/old/new/'` not `-i ''` on macOS directly — prefer `perl` for in-place edits or write a temp file
+- Quote file paths with spaces: `"$path"`
+- Avoid `cd` — prefer absolute paths so commands work from any working directory
+
+**Fenced blocks do not share shell state across steps.** Each ```sh fenced block in a SKILL.md may be an independent shell invocation — shell functions and non-exported variables defined in one fenced block are NOT visible in another (the Claude Code Bash-tool contract: "the working directory persists between commands, but shell state does not"). Therefore a shared shell **function** MUST be sourced from a `partials/*.sh` at *each* call site, in the **same fenced block as the invocation**, and MUST NEVER be defined in one fenced block and invoked from another (the silent-`command not found` telemetry-loss class). The canonical pattern is `partials/delegate-gate.sh` and `partials/emit-step-telemetry.sh`: a function-exporting partial sourced with the two-level fallback immediately before it is called. This is enforced structurally, not by prose/honor-system: the `tools/lint-skills` `cross-fence-fn` check flags any function defined in one fence but invoked from a different fenced block in the same SKILL.md.
+
+## Agent dispatch patterns
+
+- **Parallel review**: dispatch 5–6 review agents in a single message (`correctness-reviewer`, `quality-reviewer`, `architecture-reviewer`, `test-auditor`, `security-auditor`, `reflector`). Read-only mandate: every agent must be told "Report findings only. Do not apply fixes."
+- **Parallel implementation**: `task-implementer` agents dispatched one per independent task. Group into dependency tiers.
+- **Subagent mode**: when a skill runs inside a subagent (e.g., via `/sprint`'s `pipeline-runner`), do NOT dispatch further subagents. Execute sequentially in-context instead.
+
+## Pipeline state
+
+Skills that span multiple phases (`/proceed`) write a `pipeline-state.json` next to the REQ spec. This lets a long-running pipeline resume from interruption without replaying phases. Every phase update writes the state file atomically.
+
+## Commits and branches
+
+- Branch naming: `feat/REQ-xxx-short-description` for features, `fix/bug-xxx-short-description` for bugs
+- Commit message format: `<type>(<scope>): <description> [TASK-xxx]` — types are `feat`, `fix`, `refactor`, `docs`, `test`, `chore`
+- The TASK-xxx (or REQ-xxx) trailer is required for work tracked through the pipeline
+- Co-author trailer is added by Claude Code automatically when committing on behalf of the user
+
+## What NOT to do
+
+- **Don't create new skill directories casually**: each new skill is a commitment to maintain. Prefer extending an existing skill unless the new responsibility is genuinely orthogonal.
+- **Don't bypass ethos**: the ETHOS principles (especially #5 Verification Is Non-Negotiable and #6 Deterministic Gates, Not Vibes) exist because shortcuts silently fail. If you're tempted to skip a validation gate or add a `--no-verify` flag, surface the tension to the user instead.
+- **Don't duplicate context loading logic**: if the same bash macro appears in three or more skills, extract it to `skills/partials/<name>.sh` and source it from each call site (see the Ethos injection pattern above).
+- **Don't hardcode org-specific values anywhere**: skills and agents must work for any adopting org. Org-specific behavior goes through `.aif/config.yml` (the `org:`/`environments:`/`mcp:`/`local_stack:`/`regression:`/`tenancy:` sections in `templates/config-template.yml`) or an angle-bracket `<placeholder>`, and every config-dependent step states its graceful degradation when the key is absent.
+- **Don't edit `skills/templates/` without considering downstream**: consumer projects that ran `/init` got a copy of the templates. Template changes propagate via `/template-drift` detection, not auto-update.
+
+## Testing changes
+
+Because this is a symlink-install, there is no staging layer. To validate a skill change:
+
+1. Commit the change in this repo
+2. Open a Claude Code session in a consumer project (any repo that has run `/init` is a test bed)
+3. Invoke the changed skill on a real or synthetic REQ
+4. Verify the artifacts it produces match the intended behavior
+5. Revert if it breaks
+
+The toolkit's own `/proceed REQ-xxx` pipeline can also exercise changes end-to-end.

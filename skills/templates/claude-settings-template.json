@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "_comment": "AIF pipeline + org-workflow shared settings \u2014 copied into each project's .claude/settings.json by /init (and distributable across a workspace via distribute-settings.sh). Pre-approves routine read/write/git/gh/test/toolchain operations; destructive or production-impact operations stay on the ask list. Hooks reference ~/.claude/aif-hooks (symlinked to this repo's hooks/ by install.sh) and no-op on machines without the install. Per-developer overrides go in .claude/settings.local.json (git-ignored).",
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Bash(awk:*)",
+      "Bash(cat:*)",
+      "Bash(cd:*)",
+      "Bash(cp:*)",
+      "Bash(date:*)",
+      "Bash(docker compose logs:*)",
+      "Bash(docker compose ps:*)",
+      "Bash(docker logs:*)",
+      "Bash(docker ps:*)",
+      "Bash(echo:*)",
+      "Bash(find:*)",
+      "Bash(gh api:*)",
+      "Bash(gh auth status:*)",
+      "Bash(gh issue list:*)",
+      "Bash(gh issue view:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh pr comment:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh pr edit:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr ready:*)",
+      "Bash(gh pr review:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(gh run watch:*)",
+      "Bash(git add:*)",
+      "Bash(git branch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git commit:*)",
+      "Bash(git config --get:*)",
+      "Bash(git config user.email)",
+      "Bash(git config user.name)",
+      "Bash(git diff:*)",
+      "Bash(git fetch:*)",
+      "Bash(git log:*)",
+      "Bash(git merge-base:*)",
+      "Bash(git merge:*)",
+      "Bash(git mv:*)",
+      "Bash(git pull:*)",
+      "Bash(git push:*)",
+      "Bash(git rebase:*)",
+      "Bash(git restore:*)",
+      "Bash(git rm:*)",
+      "Bash(git show:*)",
+      "Bash(git stash:*)",
+      "Bash(git status:*)",
+      "Bash(git worktree:*)",
+      "Bash(go build:*)",
+      "Bash(go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@*)",
+      "Bash(go mod:*)",
+      "Bash(go test:*)",
+      "Bash(go vet:*)",
+      "Bash(gofmt:*)",
+      "Bash(goimports:*)",
+      "Bash(golangci-lint:*)",
+      "Bash(head:*)",
+      "Bash(ls:*)",
+      "Bash(make build:*)",
+      "Bash(make docker-build-local:*)",
+      "Bash(make lint:*)",
+      "Bash(make swagger:*)",
+      "Bash(make test:*)",
+      "Bash(make vet:*)",
+      "Bash(mkdir:*)",
+      "Bash(npm ci)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(npm test:*)",
+      "Bash(npx:*)",
+      "Bash(pnpm build:*)",
+      "Bash(pnpm exec:*)",
+      "Bash(pnpm format:*)",
+      "Bash(pnpm format:check:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm lint:*)",
+      "Bash(pnpm test:*)",
+      "Bash(pnpm type-check:*)",
+      "Bash(psql --help:*)",
+      "Bash(pwd)",
+      "Bash(pwd:*)",
+      "Bash(pytest:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(readlink:*)",
+      "Bash(ruff check:*)",
+      "Bash(ruff format:*)",
+      "Bash(sed:*)",
+      "Bash(tail:*)",
+      "Bash(test:*)",
+      "Bash(touch:*)",
+      "Bash(wc:*)",
+      "Bash(which:*)"
+    ],
+    "ask": [
+      "Bash(git push --force)",
+      "Bash(git push -f)",
+      "Bash(git push --force main:*)",
+      "Bash(git push --force origin main:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean -f:*)",
+      "Bash(git clean -fd:*)",
+      "Bash(git branch -D:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh pr close:*)",
+      "Bash(gh release:*)",
+      "Bash(rm -rf:*)",
+      "Bash(rm -f:*)",
+      "Bash(./deploy.sh:*)",
+      "Bash(terraform apply:*)",
+      "Bash(terraform destroy:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)"
+    ],
+    "deny": [
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf /:*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -x \"$HOME/.claude/aif-hooks/session-start-skills.sh\" ]; then \"$HOME/.claude/aif-hooks/session-start-skills.sh\"; fi"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -x \"$HOME/.claude/aif-hooks/go-format.sh\" ]; then \"$HOME/.claude/aif-hooks/go-format.sh\"; fi"
+          },
+          {
+            "type": "command",
+            "command": "if [ -x \"$HOME/.claude/aif-hooks/ts-format.sh\" ]; then \"$HOME/.claude/aif-hooks/ts-format.sh\"; fi"
+          },
+          {
+            "type": "command",
+            "command": "if [ -x \"$HOME/.claude/aif-hooks/py-format.sh\" ]; then \"$HOME/.claude/aif-hooks/py-format.sh\"; fi"
+          },
+          {
+            "type": "command",
+            "command": "if [ -x \"$HOME/.claude/aif-hooks/rust-format.sh\" ]; then \"$HOME/.claude/aif-hooks/rust-format.sh\"; fi"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -x \"$HOME/.claude/aif-hooks/secret-scan.sh\" ]; then \"$HOME/.claude/aif-hooks/secret-scan.sh\"; fi"
+          },
+          {
+            "type": "command",
+            "command": "if [ -x \"$HOME/.claude/aif-hooks/commit-prefix-check.sh\" ]; then \"$HOME/.claude/aif-hooks/commit-prefix-check.sh\"; fi"
+          },
+          {
+            "type": "command",
+            "command": "if [ -x \"$HOME/.claude/aif-hooks/precommit-gate.sh\" ]; then \"$HOME/.claude/aif-hooks/precommit-gate.sh\"; fi"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -x \"$HOME/.claude/aif-hooks/session-reflect.sh\" ]; then \"$HOME/.claude/aif-hooks/session-reflect.sh\"; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

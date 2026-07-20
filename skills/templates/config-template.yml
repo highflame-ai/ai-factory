@@ -1,0 +1,280 @@
+# .aif/config.yml — AIF project configuration
+#
+# This file lives in every repo that originates REQs. "Primary" is per-REQ,
+# not a fixed designation: whichever repo you invoke /proceed from becomes
+# the primary for that REQ, so every repo that can host REQs needs its own
+# `.aif/` (from /init) and its own config.yml.
+#
+# The config in THIS repo describes the world from this repo's perspective:
+# this repo is primary, the others are siblings. The sibling repos that also
+# originate REQs will have their own config.yml files that mirror this —
+# they'll mark themselves primary and list this one as a sibling. That's
+# expected; the configs are symmetric by design.
+#
+# A repo that only ever participates as a sibling (never originates REQs)
+# doesn't strictly need a config, but it's cheap insurance to set one up
+# anyway so it can host a REQ later.
+#
+# Single-repo projects can leave this file absent OR include only a single
+# entry under `repos:`. All AIF skills fall back to legacy single-repo
+# behavior in that case.
+#
+# ---------------------------------------------------------------------------
+# QUICKSTART: copy a preset
+# ---------------------------------------------------------------------------
+# The fastest way to fill this in is to start from a preset that matches your
+# stack, then replace the placeholder values.
+#
+#   cp ~/.claude/skills/presets/ios-firebase-cloudrun.yml .aif/config.yml
+#
+# Available presets (see ~/.claude/skills/presets/):
+#   - ios-firebase-cloudrun.yml — iOS app + Firebase + Cloud Run backend
+#
+# If no preset matches, fill out the sections below from scratch.
+
+# ---------------------------------------------------------------------------
+# project: Display name and (optional) preset reference.
+# ---------------------------------------------------------------------------
+# `name` is shown in skill output and PR/commit metadata. It's the only place
+# the project's human name appears — every skill reads it from here.
+# `preset` is informational only: it records which preset (if any) this config
+# was seeded from. Skills don't read it; it's a hint for `/template-drift`.
+
+project:
+  name: "My Project"
+  # preset: ios-firebase-cloudrun
+
+# ---------------------------------------------------------------------------
+# stack: Tech stack declaration. Drives conditional skill behavior.
+# ---------------------------------------------------------------------------
+# Skills consult these lists before running stack-specific steps. For example,
+# `/bugfix` and `/wrapup` only emit iOS deploy instructions when `frontends`
+# includes `ios`. `/canary` only runs when `backends` includes `cloud-run`.
+#
+# Keep these lists honest — listing a platform you don't actually use will
+# produce noisy output; omitting one will skip steps you actually need.
+#
+# Recognized values (extend by editing the relevant skill):
+#   languages:  swift | typescript | javascript | python | go | rust | kotlin | java
+#   frontends:  ios | android | web | mobile-rn | mobile-flutter
+#   backends:   cloud-run | aws-lambda | k8s | nodejs-server | django | rails | none
+#   databases:  firestore | postgres | mysql | dynamodb | mongodb | sqlite | none
+#   ci:         github-actions | gitlab-ci | circleci | none
+
+stack:
+  languages: []
+  frontends: []
+  backends: []
+  databases: []
+  ci: github-actions
+
+# ---------------------------------------------------------------------------
+# repos: This repo plus every sibling it might coordinate with.
+# ---------------------------------------------------------------------------
+# The key is a short stable id (used in task frontmatter as `repo: <id>`).
+# The entry for THIS repo has `primary: true` and no `path` (path is implicit).
+# Sibling entries declare a `path:` relative to this repo's root (or absolute).
+# Every sibling must be cloned locally at that path.
+
+repos:
+  # Example: primary is the web frontend
+  web:
+    primary: true
+  # Example: siblings
+  api:
+    path: ../api
+  mobile:
+    path: ../mobile
+
+# ---------------------------------------------------------------------------
+# merge_order: Order Phase 8 merges PRs.
+# ---------------------------------------------------------------------------
+# List touched repo ids in the order they should merge. Typical pattern:
+# data/backend first, then the services that consume them.
+# If omitted, /proceed uses the order repos appear under `repos:` above.
+
+merge_order:
+  - api
+  - web
+  - mobile
+
+# ---------------------------------------------------------------------------
+# gcp: GCP-specific deploy config. Only relevant if `stack.backends` includes
+# `cloud-run` or your CI/CD targets GCP.
+# ---------------------------------------------------------------------------
+# `staging_project` and `production_project` are the GCP project IDs that
+# `/bugfix` and `/wrapup` query to confirm a deploy succeeded.
+# `default_region` is used by `/canary` and the deploy-confirmation gcloud
+# commands when a service entry doesn't specify its own region.
+#
+# If you don't deploy to GCP, omit this whole section.
+
+gcp:
+  staging_project: <staging-gcp-project-id>
+  production_project: <production-gcp-project-id>
+  default_region: us-central1
+
+# ---------------------------------------------------------------------------
+# ios: iOS-specific deploy config. Only relevant if `stack.frontends`
+# includes `ios`.
+# ---------------------------------------------------------------------------
+# `deploy_targets` is the list of WiFi-paired devices (or simulators) that
+# `/bugfix` and `/wrapup` deploy to after merge. Listing more than one means
+# every device gets the build — drop devices you don't need to keep current.
+# `derived_data_clean: true` runs `rm -rf ~/Library/Developer/Xcode/DerivedData/*`
+# before each deploy (recommended — avoids stale-build issues).
+# `deploy_command` is the script the skill invokes from the iOS repo root.
+#
+# If you don't ship iOS, omit this whole section.
+
+ios:
+  deploy_targets: []
+  derived_data_clean: true
+  deploy_command: "./deploy.sh"
+
+# ---------------------------------------------------------------------------
+# services: Cloud Run / deploy config keyed by repo id.
+# ---------------------------------------------------------------------------
+# Consumed by /canary. Repos without a `services:` entry are treated as
+# non-deployable (e.g., docs-only, iOS, infrastructure-only repos).
+# Repos that deploy via a different mechanism (TestFlight, custom script)
+# can be omitted here and handled in /wrapup Step 6.
+
+services:
+  api:
+    cloud_run_service: api
+    region: us-central1
+    image_path: us-central1-docker.pkg.dev/<gcp-project>/api/api
+  web:
+    cloud_run_service: web
+    region: us-central1
+    image_path: us-central1-docker.pkg.dev/<gcp-project>/web/web
+
+# ---------------------------------------------------------------------------
+# NOTE — machine-scoped settings do NOT live in this file. The workspace root
+# (where your org's repos live), delegation, and agent model classes are
+# per-machine and belong in ~/.claude/aif/config.yml (scaffolded by
+# install.sh). This file is committed into each repo and must stay portable:
+#   workspace root  -> ~/.claude/aif/config.yml `workspace.root` (or AIF_WORKSPACE)
+#   sibling repos   -> the `repos:` section above, with RELATIVE paths
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# org: organization-wide conventions and endpoints (ALL OPTIONAL).
+# ---------------------------------------------------------------------------
+# Consumed by the org-workflow skills (/from-issue, /ship, /git-workflow,
+# /grill-feature, /feature-prep, /triage-dev, /deprecate) and agents
+# (pr-shepherd, cross-repo-impact, security-reviewer, migration-analyzer).
+# Every key is optional — skills state their fallback when a key is absent.
+
+org:
+  name: <org-name>                      # human name, used in reports
+  github_org: <github-org>              # default owner for cross-repo searches (/from-issue, /handoff)
+  # Commit-subject gate. Also enforced by hooks/commit-prefix-check.sh
+  # (env override: AIF_COMMIT_PREFIX_REGEX). Default if absent: conventional
+  # commits (feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert).
+  # NOTE: single backslashes — the hook extracts this value verbatim (awk, no
+  # YAML unescaping) and hands it to bash's =~. This example equals the hook's
+  # built-in default, INCLUDING the machine-generated subjects
+  # (Merge/Revert/Bump/build(deps)) that an override would otherwise drop.
+  commit_prefix_regex: "^((feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?!?:|Merge|Revert|Bump|build\(deps\))"
+  # Where architectural decisions and platform promises live (used by
+  # /grill-feature and /feature-prep as review anchors; skip checks if absent).
+  adr_dir: <path-to-adrs>               # e.g. ../architecture/adrs
+  spec_registry: <path-to-registry>     # e.g. ../architecture/capabilities.yaml
+  slack:
+    pr_channel: "#<pr-review-channel>"  # pr-shepherd posts here when CI is green (skipped if absent)
+  # Backpressure on the human review queue: /sprint and /from-issue pause
+  # dispatching NEW work when you already have this many open PRs awaiting
+  # review. Absent -> no cap (a warning is still printed at 10+).
+  max_open_prs: 8
+  # Where incident/ops runbooks live (used by /triage-dev to match symptoms
+  # to a runbook; read-only steps run automatically, mutating steps are only
+  # proposed). Absent -> triage proceeds without runbook lookup.
+  runbooks_dir: <path-to-runbooks>      # e.g. ../ops/runbooks
+  # License policy for /license-audit. Absent -> advisory mode (inventory +
+  # needs-review flags, no pass/fail verdicts, offer to write a policy).
+  license_policy:
+    allow: [MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC]
+    deny:  [AGPL-3.0-only, SSPL-1.0]
+    # Anything not listed either way -> needs-review (never auto-denied).
+
+# ---------------------------------------------------------------------------
+# environments: shared environments for triage and post-deploy verification.
+# ---------------------------------------------------------------------------
+# Consumed by /triage-dev and /ship's post-deploy verification. `observability`
+# entries describe where to look, in order, when something is broken there.
+
+environments:
+  dev:
+    name: <shared-dev-env-name>
+    observability:                      # ordered triage sequence
+      - <traces/dashboard tool or MCP tool family>
+      - <cluster/pods inspection method>
+      - <database inspection method>
+  production:
+    name: <prod-env-name>
+
+# ---------------------------------------------------------------------------
+# mcp: MCP server integration (optional).
+# ---------------------------------------------------------------------------
+# If your org runs an MCP server exposing platform state (docs, DB schema,
+# k8s, service APIs), /source-driven and /triage-dev will prefer it over
+# speculation. Tool names are matched as mcp__<namespace>__*.
+
+mcp:
+  namespace: <mcp-server-namespace>     # e.g. acme-platform
+
+# ---------------------------------------------------------------------------
+# local_stack: bringing the platform up locally (optional).
+# ---------------------------------------------------------------------------
+# Consumed by the local-stack-runner agent. Point it at whatever drives your
+# local environment (docker compose, Tilt, make targets, ...).
+
+local_stack:
+  dir: <path-to-local-deploy>           # e.g. ../platform/local-deploy
+  up_command: <command>                 # e.g. "make up"
+  down_command: <command>               # e.g. "make down"
+  logs_command: <command>               # e.g. "make logs SVC=<svc>"
+
+# ---------------------------------------------------------------------------
+# regression: org-level end-to-end test suite (optional).
+# ---------------------------------------------------------------------------
+# Consumed by the kind-regression-runner agent (rename/adapt it for your stack) and /feature-prep's "where do tests
+# go" decision. Omit if all tests are repo-local.
+
+regression:
+  repo: <path-to-regression-repo>       # e.g. ../regression
+  run_command: <command>                # e.g. "make e2e PROFILE=smoke"
+  profiles: [smoke, full]               # named subsets, cheapest first
+
+# ---------------------------------------------------------------------------
+# tenancy: multi-tenant data isolation keys (optional).
+# ---------------------------------------------------------------------------
+# Consumed by security-reviewer, migration-analyzer, and the multi-tenancy
+# reference checklist. List every column/claim that scopes tenant data; the
+# invariant these enforce: no query, cache key, or API response crosses
+# tenants without ALL keys present.
+
+tenancy:
+  keys:
+    - <tenant-key-1>                    # e.g. account_id
+    - <tenant-key-2>                    # e.g. project_id
+
+# ---------------------------------------------------------------------------
+# secrets: the org's secret/credential inventory (optional).
+# ---------------------------------------------------------------------------
+# Consumed by /rotate-secrets. NAMES AND LOCATIONS ONLY — never values.
+# expiry_check commands must print an expiry date or days-left and MUST NOT
+# print the secret itself. When this section is absent, /rotate-secrets runs
+# in inventory-building mode and drafts it for you.
+
+secrets:
+  inventory:
+    - name: <human-name>                 # e.g. payments-api-key
+      kind: api-key                      # api-key | tls-cert | signing-key | db-credential | webhook-secret
+      store: <where-it-lives>            # e.g. aws-secretsmanager:/prod/payments
+      consumers: [<service-or-repo>]     # who breaks if this rotates badly
+      expiry_check: <command>            # optional; prints expiry/days-left, never the value
+      rotate_runbook: <path-or-note>     # optional org-specific steps
+      max_age_days: 90                   # optional age-out when nothing expires naturally

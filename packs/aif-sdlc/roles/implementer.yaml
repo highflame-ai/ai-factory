@@ -1,0 +1,5 @@
+name: implementer
+summary: Implements one scoped task inside a designated worktree — edits, tests, commits within that boundary.
+write: true
+network: read-only   # dependency fetch during builds/tests (npm/go mod/pip); never posting
+envelope: all   # full tool access; the boundary is the worktree, not the toolset

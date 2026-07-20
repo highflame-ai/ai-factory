@@ -1,0 +1,5 @@
+name: orchestrator
+summary: Drives multi-phase pipelines or long-running chores end to end (pipeline runs, PR babysitting, stack/regression lifecycles). May dispatch work and post to configured channels.
+write: true
+network: true   # forge/PR APIs, configured MCP servers (e.g. Slack for pr-shepherd)
+envelope: all

@@ -1,0 +1,81 @@
+<!-- delegate-routing:start -->
+## Delegation Tools (token saving)
+
+You have CLIs for offloading token-heavy I/O to a configured *delegate* model —
+any OpenAI-compatible endpoint (the default ships pointing at Moonshot's Kimi).
+Use them to keep your context window focused on reasoning. The rules below are
+mandatory.
+
+### aif-read — bulk reading
+
+Use when you'd otherwise read a file longer than ~400 lines, or when answering
+one question would require reading 3+ files. Usage:
+
+```
+aif-read --paths <f1> <f2> ... --question "<q>"
+```
+
+Use the returned summary instead of reading the files yourself. Pass
+`--no-warn` (or export `AIF_DELEGATE_NO_WARN=1`) to suppress the privacy notice.
+
+### aif-write — boilerplate generation
+
+Use for tests, config scaffolding, docstrings, and other repetitive patterns.
+Usage:
+
+```
+aif-write --spec "<what to generate>" --context <reference file> --target <output file>
+```
+
+Then review the generated file and edit only what needs fixing. Add `--force`
+to overwrite an existing target. Pass `--no-warn` (or export
+`AIF_DELEGATE_NO_WARN=1`) to suppress the privacy notice.
+
+### Configuration
+
+The delegate provider is three values: a base URL, a model name, and the *name*
+of an env var holding the API key. Resolution precedence (highest first): CLI
+flags (`--model`, `--base-url`) > `AIF_DELEGATE_*` env vars > config file
+(`~/.claude/aif/config.yml`, override with `AIF_CONFIG`) > legacy
+`MOONSHOT_API_KEY`/`KIMI_API_KEY` key-env continuity > shipped defaults. The
+config file stores `api_key_env` (a variable NAME), never a key value.
+
+### Privacy and data governance
+
+- Delegation **transmits the file/diff contents you pass to it** to the
+  configured third-party endpoint. Whether that is permitted is the adopter's
+  responsibility — confirm your company's data-handling policy before enabling.
+- Delegation is **disabled by default**. It is enabled only by `enabled: true`
+  in the config file, `AIF_DELEGATE_ENABLED=1` in the environment, or an
+  already-set legacy `KIMI_API_KEY`/`MOONSHOT_API_KEY` (key continuity for
+  existing installs). `AIF_DISABLE_DELEGATE=1` forces it off.
+- Only the **basename** of each path is embedded in the corpus block — full
+  local paths stay on your machine.
+- Every run prints a one-line `delegate: ...` notice on stderr; silence it with
+  `--no-warn` or `AIF_DELEGATE_NO_WARN=1`.
+
+### Documentation workflow
+
+To update docs after a working session, don't re-read the conversation and
+rewrite the docs by hand. Instead:
+
+```
+extract-chat ~/.claude/projects/<proj>/<session>.jsonl -o /tmp/chat.txt
+aif-read --paths /tmp/chat.txt <doc>.md --question "What doc updates are needed? Give exact edits."
+```
+
+Then apply the returned edits. Prefer this over re-reading the conversation and
+rewriting docs directly.
+
+### When NOT to delegate
+
+Do **not** route to the delegate for:
+
+- Tasks under ~2000 tokens (roughly under ~150 lines of code, or a short back-and-forth) — the delegation round-trip costs more than it saves.
+- Architectural decisions.
+- Debugging.
+- Safety- and security-critical code.
+- Anything that requires exact line numbers for editing.
+
+**Claude = thinking. The delegate = I/O.**
+<!-- delegate-routing:end -->

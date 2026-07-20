@@ -1,0 +1,42 @@
+schema: codeoid/pack@v1
+id: aif-sdlc
+name: AIF Spec-Driven SDLC
+version: 0.1.0
+description: >
+  Spec → architect → implement → review → ship, governed per phase. Each phase
+  runs a skill under a capability role (the role IS the tool envelope), with the
+  ETHOS constitution composed into every phase. The reviewer phase physically
+  cannot write or egress; the implement phase can.
+
+# Constitution — composed into every phase's system prompt.
+constitution: ./ETHOS.md
+
+# Capability roles (carried from ai-factory/roles) → compiled to Cedar.
+# A phase runs under exactly one role's envelope.
+roles:
+  - ./roles/implementer.yaml    # write:true,  network:read-only, envelope:all
+  - ./roles/reviewer.yaml       # write:false, network:read-only, envelope:[read,grep,glob,bash]
+  - ./roles/orchestrator.yaml   # write:true,  network:true,       envelope:all
+
+# Runnable content each phase drives. `slash` = an installed ai-factory skill.
+skills:
+  - { id: spec,      kind: slash, command: /spec }
+  - { id: architect, kind: slash, command: /architect }
+  - { id: validate,  kind: slash, command: /validate }
+  - { id: implement, kind: slash, command: /proceed }
+  - { id: review,    kind: slash, command: /review }
+  - { id: wrapup,    kind: slash, command: /wrapup }
+
+# Gate predicates. kinds: command (runs on host, trust-gated) | skill | review | self.
+gates:
+  - { id: spec_valid,           kind: skill,   skill: validate }   # /validate → pass/fail
+  - { id: tests_pass,           kind: command, run: "make test" }  # runs only for a trusted pack
+  - { id: no_blocking_findings, kind: review,  role: reviewer }    # read-only review bench
+
+# The pipeline. Each phase: a skill under a role, gated on exit.
+phases:
+  - { id: spec,      skill: spec,      role: implementer,  gate: spec_valid,           onFail: halt }
+  - { id: architect, skill: architect, role: implementer,  gate: spec_valid,           onFail: halt }
+  - { id: implement, skill: implement, role: implementer,  gate: tests_pass,           onFail: { retry: 2 } }
+  - { id: review,    skill: review,    role: reviewer,     gate: no_blocking_findings, onFail: halt }
+  - { id: ship,      skill: wrapup,    role: orchestrator }

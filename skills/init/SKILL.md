@@ -1,0 +1,318 @@
+---
+name: init
+description: Bootstrap .aif/ structure in a new repo or subdirectory
+argument-hint: Optional target directory (defaults to current directory)
+---
+
+# /init — Bootstrap AIF Structure
+
+You are setting up the `.aif/` directory structure for spec-driven development.
+
+## Ethos
+
+!`sh .aif/partials/ethos-include.sh 2>/dev/null || sh ~/.claude/skills/partials/ethos-include.sh`
+
+## Input
+
+Target: $ARGUMENTS
+
+## Instructions
+
+### Step 1: Determine Target Directory
+1. If given a path, use that as the target
+2. If no argument, use the current working directory
+3. Check if `.aif/` already exists — if so, report what's already there and ask if the user wants to reinitialize or fill gaps
+
+### Step 2: Gather Project Context
+Ask the user for the following (skip any that are already known from existing files):
+1. **Project name** — What is this project called?
+2. **What it does** — One paragraph description
+3. **Tech stack** — Languages, frameworks, databases, cloud providers
+4. **Project scope** — What's in scope vs out of scope
+5. **Key architectural patterns** — Layered? Microservices? Monolith?
+
+If a `CLAUDE.md`, `README.md`, or `package.json` exists, extract this info automatically and confirm with the user instead of asking.
+
+### Step 3: Create Directory Structure
+```
+.aif/
+  ETHOS.md               # Copy of ~/.claude/skills/ETHOS.md — ensures skills work inside git worktrees
+  context/
+    project-overview.md    # What the project does, tech stack, scope
+    architecture.md        # System diagram, layers, key patterns, ADRs
+    conventions.md         # File organization, naming, testing, git conventions
+    taxonomy.md            # Retrieval tag vocabulary (component/domain/stack/concerns)
+  specs/
+    .gitkeep
+  bugs/
+    .gitkeep
+  knowledge/
+    assumptions/
+      .gitkeep
+    lessons/
+      .gitkeep
+  templates/             # Copies of ~/.claude/skills/templates/*.md — ensures skills work inside git worktrees
+    assumption-template.md
+    bug-template.md
+    lesson-template.md
+    requirement-template.md
+    task-template.md
+  partials/              # Copies of ~/.claude/skills/partials/*.sh — shared shell snippets sourced by SKILL.md files
+    ethos-include.sh
+  workflows/             # Copies of ~/.claude/skills/workflows/ RUNTIME files only — Dynamic Workflow scripts used by the workflow engine
+    aif-sprint.workflow.js   # ONE self-contained file: meta first, schemas + pure helpers inlined behind // ==== BEGIN/END PURE ==== (runtime has no require)
+    README.md            # NOTE: workflows/tests/ is intentionally NOT copied — those are toolkit-internal node:test files (CommonJS require) that break Jest in "type":"module" consumer repos (see Step 6)
+```
+
+**Why the local copies of ETHOS.md, templates, partials, and workflows?** Claude Code's sandbox blocks the `Read` tool from accessing paths outside the current working directory. When a skill runs inside a git worktree (e.g., `.claude/worktrees/<name>/`), `~/.claude/skills/ETHOS.md`, `~/.claude/skills/templates/*.md`, `~/.claude/skills/partials/*.sh`, and `~/.claude/skills/workflows/*` become unreadable by subagents and any tool that uses `Read` mid-skill. Keeping copies under `.aif/` makes the toolkit work identically in main checkouts and worktrees.
+
+### Step 4: Populate Context Files
+
+**project-overview.md** — Based on user input or existing docs:
+```markdown
+# {Project Name} — Project Overview
+
+## What It Does
+{description}
+
+## Tech Stack
+{tech stack table or list}
+
+## Project Scope
+{in scope / out of scope}
+```
+
+**architecture.md** — Initial structure:
+```markdown
+# {Project Name} — Architecture
+
+## System Diagram
+{ASCII diagram of major components}
+
+## Layers
+{description of architectural layers}
+
+## Key Patterns
+{important patterns used in the codebase}
+
+## ADRs
+(Add architectural decision records here as decisions are made)
+```
+
+**conventions.md** — Based on project analysis:
+```markdown
+# {Project Name} — Conventions
+
+## File Organization
+{directory structure}
+
+## Naming
+{naming conventions per language}
+
+## Testing
+{test framework, conventions, coverage requirements}
+
+## Error Handling
+{error handling patterns}
+
+## Git Conventions
+{branch naming, commit messages, PR process}
+```
+
+### Step 5: Update .gitignore
+Add the following entries to the project's `.gitignore` (create it if it doesn't exist):
+```
+# AIF worktrees (used by /proceed for parallel session isolation)
+.worktrees/
+
+# Claude Code per-user permission overrides (team settings live in .claude/settings.json)
+.claude/settings.local.json
+
+# AIF ID counters are global (~/.claude/.global-next-req, ~/.claude/.global-next-bug, ~/.claude/.global-next-lesson) — not per-project
+# Legacy per-project counters (deprecated, no longer read/written — ignored if present)
+.aif/.next-bug
+.aif/.next-req
+.aif/.next-lesson
+```
+
+### Step 6: Copy ETHOS.md and Templates Into the Project
+
+Copy the canonical ETHOS.md and all templates from the toolkit into the project so skills keep working inside git worktrees (where Read is sandboxed to the worktree root).
+
+```bash
+# Verify source exists
+if [ ! -f ~/.claude/skills/ETHOS.md ] || [ ! -d ~/.claude/skills/templates ] || [ ! -d ~/.claude/skills/partials ] || [ ! -d ~/.claude/skills/workflows ]; then
+  echo "ERROR: Toolkit not found at ~/.claude/skills/. Ensure ~/.claude/skills is symlinked to the ai-factory repo."
+  exit 1
+fi
+
+# Copy ETHOS.md (overwrite — canonical is source of truth)
+cp ~/.claude/skills/ETHOS.md .aif/ETHOS.md
+
+# Copy templates (overwrite — canonical is source of truth)
+mkdir -p .aif/templates
+cp ~/.claude/skills/templates/*.md .aif/templates/
+
+# Copy partials (overwrite — canonical is source of truth). These are POSIX
+# shell snippets sourced by SKILL.md files (e.g., ethos-include.sh).
+mkdir -p .aif/partials
+cp ~/.claude/skills/partials/*.sh .aif/partials/
+chmod +x .aif/partials/*.sh
+
+# Copy workflows (overwrite — canonical is source of truth). These are the
+# Dynamic Workflow scripts the workflow engine runs (e.g.,
+# aif-sprint.workflow.js — ONE self-contained file with schemas + pure helpers
+# inlined, since the runtime has no require). Resolved via the two-level fallback
+# (.aif/workflows/... -> ~/.claude/skills/workflows/...) so the engine works
+# inside git worktrees where Read is sandboxed to the worktree root.
+#
+# Copy ONLY the runtime files: the workflow script(s) and the top-level README.
+# Do NOT copy workflows/tests/ — those are toolkit-internal `node:test` unit
+# tests for the inlined PURE helpers (CommonJS `require('node:test')`). They have
+# no purpose in a consumer repo, and shipping a `*.test.js` under .aif/ is a
+# trap: in any "type":"module" repo running Jest, the DEFAULT testMatch
+# (**/?(*.)+(spec|test).[jt]s?(x)) discovers .aif/workflows/tests/helpers.test.js,
+# runs it as ESM, and fails it with "ReferenceError: require is not defined" —
+# reddening `npm test` and any CI gate that runs it. The engine is ONE
+# self-contained file (no require/import/fs), so globbing *.workflow.js captures
+# everything the runtime ever resolves.
+mkdir -p .aif/workflows
+cp ~/.claude/skills/workflows/*.workflow.js .aif/workflows/
+cp ~/.claude/skills/workflows/README.md .aif/workflows/
+# Idempotent cleanup: remove a stale tests/ dir left by an OLDER /init that did
+# `cp -R` of the whole workflows tree. Heals already-initialized repos on re-run;
+# safe no-op when absent. (Belt-and-suspenders to the explicit-file copy above.)
+rm -rf .aif/workflows/tests
+
+# Clean up Finder-style duplicates if present. Matches:
+#   - .md files: "requirement-template 2.md"
+#   - non-.md files: "pipeline-state 2.json", ".next-bug 2"
+#   - directories: "knowledge 2", "specs 2"
+# The `-depth` flag processes directory contents before the directory itself,
+# so `rm -rf` on a "* 2" dir doesn't fail due to prior deletions.
+find .aif -depth \( -name "* 2" -o -name "* 2.*" \) -exec rm -rf {} + 2>/dev/null
+
+# Advisory (Jest repos): the copy above ships NO test files under .aif/, so the
+# default Jest testMatch stays green with no config change. Only a repo with a
+# custom BROAD testMatch (e.g. "**/*.js") would pick up .aif/ — those repos
+# should add "<rootDir>/.aif/" to testPathIgnorePatterns. Purely informational;
+# this does not edit package.json or any jest config.
+if grep -q '"jest"' package.json 2>/dev/null || find . -maxdepth 1 -name 'jest.config.*' 2>/dev/null | grep -q .; then
+  echo "ADVISORY (Jest detected): .aif/ contains no test files by design — default 'npm test' is unaffected. If you use a custom broad testMatch, add \"<rootDir>/.aif/\" to testPathIgnorePatterns."
+fi
+```
+
+If the user has previously made intentional customizations to their local `.aif/ETHOS.md`, `.aif/templates/*.md`, `.aif/partials/*.sh`, or `.aif/workflows/aif-sprint.workflow.js`, confirm before overwriting. Use `/template-drift` to surface what differs (it also flags a stale `.aif/workflows/tests/` left by an older `/init` — the Jest landmine fixed above). Typical drift (stale copies) should be overwritten silently.
+
+#### Vendored sync surfaces (drift-detection contract with `/template-drift`)
+
+The four surfaces this step copies are the project's **vendored sync surfaces** — copied once at
+init time, never auto-updated afterward. `/template-drift` is the tool that detects when a toolkit
+update to any of them has not yet landed in this project. The two lists MUST stay in agreement:
+**every surface added here must get a matching check in `/template-drift`** (see its
+`<!-- sync-surfaces: template-drift -->` list). The toolkit's `tools/lint-skills`
+`sync-surface-parity` check fails the build if they diverge.
+
+<!-- sync-surfaces: init -->
+- `ethos` — `cp ~/.claude/skills/ETHOS.md .aif/ETHOS.md`
+- `templates` — `cp ~/.claude/skills/templates/*.md .aif/templates/`
+- `partials` — `cp ~/.claude/skills/partials/*.sh .aif/partials/`
+- `workflow-runtime` — `cp ~/.claude/skills/workflows/*.workflow.js` + `README.md` → `.aif/workflows/`
+<!-- /sync-surfaces -->
+
+(Note: `/template-drift` checks one additional surface — `workflow-test-landmine`, a stale
+`*.test.js` an *older* `/init` left under `.aif/`. That is a drift *symptom* this step deliberately
+does NOT copy, so it has no entry here; the parity check accounts for that asymmetry.)
+
+### Step 7: Scaffold Retrieval Taxonomy
+
+Copy the canonical taxonomy template to `.aif/context/taxonomy.md` so authors of new REQs, bugs, and lessons have a reference vocabulary for retrieval tags.
+
+**This step is idempotent — skip if the file already exists** (preserve any project-local customizations).
+
+```bash
+# Verify source exists
+if [ ! -f ~/.claude/skills/templates/taxonomy-template.md ]; then
+  echo "ERROR: Taxonomy template not found at ~/.claude/skills/templates/taxonomy-template.md. Ensure ~/.claude/skills is symlinked to the ai-factory repo."
+  exit 1
+fi
+
+# Ensure destination directory exists (safe if Step 3 already created it)
+mkdir -p .aif/context
+
+# Idempotent copy: only copy if destination does not already exist
+if [ ! -f .aif/context/taxonomy.md ]; then
+  cp ~/.claude/skills/templates/taxonomy-template.md .aif/context/taxonomy.md
+  echo "Created .aif/context/taxonomy.md from canonical template."
+else
+  echo "Preserved existing .aif/context/taxonomy.md (idempotent — not overwritten)."
+fi
+```
+
+Advise the user: "Open `.aif/context/taxonomy.md` and customize the example values for this codebase. Authors of new REQs, bugs, and lessons will reference this file when choosing tag values (`component`, `domain`, `stack`, `concerns`). The `tags` dimension stays free-form."
+
+### Step 8: Scaffold Claude Code Permissions Allowlist
+
+Copy the canonical Claude Code settings template to `.claude/settings.json` so `/proceed` (and every other skill in this toolkit) can run end-to-end without prompting for permission on every routine `git`, `gh`, test, and agent-dispatch operation. This is the single biggest mitigation against per-phase gating in long-running pipelines.
+
+**This step is idempotent — skip if the file already exists** (preserve any project-local customizations).
+
+```bash
+# Verify source exists
+if [ ! -f ~/.claude/skills/templates/claude-settings-template.json ]; then
+  echo "ERROR: Settings template not found at ~/.claude/skills/templates/claude-settings-template.json. Ensure ~/.claude/skills is symlinked to the ai-factory repo."
+  exit 1
+fi
+
+# Ensure destination directory exists
+mkdir -p .claude
+
+# Idempotent copy: only copy if destination does not already exist
+if [ ! -f .claude/settings.json ]; then
+  cp ~/.claude/skills/templates/claude-settings-template.json .claude/settings.json
+  echo "Created .claude/settings.json from canonical template."
+else
+  echo "Preserved existing .claude/settings.json (idempotent — not overwritten)."
+fi
+```
+
+The template pre-approves the routine `git`, `gh`, `npm`, Read/Write/Edit, and agent-dispatch operations the AIF pipeline fires. Destructive operations (`rm -rf`, `git reset --hard`, `gh pr merge`, `./deploy.sh`, `terraform apply/destroy`, force-push to `main`) remain on the **ask** list so a human still confirms the one-way moves. Customize for project-specific commands (e.g., add `Bash(cd app && ./deploy.sh:*)` for iOS deploys) by editing `.claude/settings.json` directly.
+
+Advise the user: "`.claude/settings.json` was scaffolded with a default allowlist. Commit this file — it is team-shared. Use `.claude/settings.local.json` (gitignored by Claude Code) for personal overrides."
+
+### Step 9: Scaffold Cross-Repo Config (Optional)
+
+Ask the user: "Will this repo ever share features with other repos you also work on (e.g., an admin app + its API + an iOS app)? If yes, `/proceed` can coordinate REQs across them — this repo needs a `.aif/config.yml` to list its siblings."
+
+**Conceptual note** — explain if the user seems uncertain: "Primary" is per-REQ, not a fixed role. The current repo is primary for REQs that originate here (`/proceed` invoked from this repo). The siblings you list are other repos that might participate when a cross-repo REQ starts here. If you also originate REQs from one of those siblings, you'll run `/init` there too — each repo that hosts REQs gets its own `.aif/` and its own `config.yml` listing the others as siblings (mirror images of each other).
+
+If the user confirms cross-repo **and** `.aif/config.yml` does not already exist, copy the template:
+
+```bash
+# Verify source exists
+if [ ! -f ~/.claude/skills/templates/config-template.yml ]; then
+  echo "ERROR: Config template not found at ~/.claude/skills/templates/config-template.yml."
+  exit 1
+fi
+
+if [ ! -f .aif/config.yml ]; then
+  cp ~/.claude/skills/templates/config-template.yml .aif/config.yml
+  echo "Created .aif/config.yml from template — edit it to match your repo layout."
+else
+  echo "Preserved existing .aif/config.yml."
+fi
+```
+
+Advise the user:
+- "Edit `.aif/config.yml`. The entry for THIS repo should have `primary: true` and no `path` (path is implicit since it's this repo). Each sibling entry gets a `path:` (relative to this repo root, or absolute). Every sibling must already be cloned locally at that path."
+- "If you also run REQs from one of the siblings, run `/init` there too. That repo's config will mark itself as primary and list the others as siblings — the structure is symmetric."
+- "If this is a single-repo project (REQs only ever originate here and never touch other repos), skip this step. AIF skills fall back to single-repo behavior when no config or no siblings are declared."
+- "After editing, verify with `cat .aif/config.yml` and make sure each sibling path resolves: `git -C <sibling-path> rev-parse --git-dir`."
+
+If the project is single-repo, skip the copy (no config file needed).
+
+### Step 10: Summary
+1. Display the created directory structure
+2. Explain the AIF workflow: `/spec` → `/validate` → `/architect` → `/validate` → implement → `/reflect` → `/review` → `/wrapup` (or use `/proceed` to run the full pipeline automatically)
+3. If cross-repo config was scaffolded, remind the user that `/proceed` will create worktrees in every touched sibling and open one PR per repo
+4. Suggest adding AIF skill references to the project's `CLAUDE.md` if one exists

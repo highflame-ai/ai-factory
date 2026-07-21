@@ -23,8 +23,10 @@ available to every codeoid that points at this registry.
 [`index.yaml`](index.yaml) is a generated, machine-readable catalog of every
 pack here (`id` / `name` / `version` / `path` / `description`), so a consumer can
 list what's available cheaply — one file over raw-git — without cloning and
-walking the tree. **It is generated; do not hand-edit.** After adding or changing
-a pack, regenerate and commit it:
+walking the tree. **It is generated; do not hand-edit.**
+
+After adding or changing a pack, run this from the repository root to regenerate
+it, then commit the result:
 
 ```
 bin/gen-pack-index.sh

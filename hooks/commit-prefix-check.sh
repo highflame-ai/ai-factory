@@ -32,8 +32,26 @@ if [[ -z "$COMMAND" ]]; then
   exit 0
 fi
 
-# Only inspect git-commit invocations. Any other Bash command passes.
-if ! grep -qE '(^|[^[:alnum:]])git[[:space:]]+commit([[:space:]]|$)' <<< "$COMMAND"; then
+# The env bypass above cannot fire when the marker is set INSIDE the guarded
+# command (PreToolUse hooks run before it, in a separate process), so honor
+# the marker appearing in the command string too.
+if grep -q 'CLAUDE_DISABLE_COMMIT_PREFIX_CHECK=1' <<< "$COMMAND"; then
+  exit 0
+fi
+
+# Only inspect git-commit INVOCATIONS. A command that merely MENTIONS
+# git-commit inside a heredoc body or quoted string (editing docs, tests,
+# or this hook itself) is not a commit: strip those regions first.
+RESIDUE=$(python3 - "$COMMAND" <<'PYSTRIP' 2>/dev/null || printf '%s' "$COMMAND"
+import re, sys
+cmd = sys.argv[1]
+cmd = re.sub(r"<<-?\s*['\"]?(\w+)['\"]?.*?\n\1\b", "<<HEREDOC", cmd, flags=re.DOTALL)
+cmd = re.sub(r"'[^']*'", "''", cmd)
+cmd = re.sub(r'"(?:[^"\\\\]|\\\\.)*"', '""', cmd)
+print(cmd)
+PYSTRIP
+)
+if ! grep -qE '(^|[^[:alnum:]])git[[:space:]]+commit([[:space:]]|$)' <<< "$RESIDUE"; then
   exit 0
 fi
 
@@ -78,7 +96,16 @@ try:
 except ValueError:
     sys.exit(0)
 
-i = 0
+# Scan only AFTER the commit invocation tokens: in a compound command like
+# `python3 -m pytest && <invocation> -m "fix: x"`, the earlier `-m pytest`
+# must not be mistaken for the commit subject (live false positive).
+start = 0
+for j in range(len(tokens) - 1):
+    if tokens[j] == "git" and tokens[j + 1] == "commit":
+        start = j + 2
+        break
+
+i = start
 while i < len(tokens):
     t = tokens[i]
     if t == "-m" or t == "--message":

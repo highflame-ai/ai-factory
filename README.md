@@ -107,7 +107,7 @@ Core workflow:
 
 ## Experts — path-scoped domain context
 
-[`/expert`](skills/expert/SKILL.md) curates a **domain expert**: dense context distilled from your own docs and code, stored at `.aif/experts/<name>.md`, and injected into a task **only when the change touches that domain** (matched by the expert's `applies_to` globs). Context engineering — React context on a React change, DynamoDB context on a data-access change, neither on unrelated work. `/review` activates matching experts automatically. `workspace-CLAUDE.md` holds facts true everywhere, `references/` are cross-cutting checklists, lessons are relevance-ranked incidents, experts are path-scoped domain knowledge.
+[`/expert`](skills/expert/SKILL.md) curates a **domain expert**: dense context distilled from your own docs and code, stored at `.aif/experts/<name>.md`, and injected into a task **only when the change touches that domain** (matched by the expert's `applies_to` globs). Context engineering — React context on a React change, DynamoDB context on a data-access change, neither on unrelated work. `/review` activates matching experts automatically. `workspace-CLAUDE.md` holds facts true everywhere, `references/` are cross-cutting checklists, lessons are relevance-ranked incidents, experts are path-scoped domain knowledge. The `applies_to` globs are also the future compile key for path-scoped rules in other assistants (Copilot `applyTo`, Cursor globs) — that emission is the next phase.
 
 ## Roles — one capability definition, every agent runtime
 

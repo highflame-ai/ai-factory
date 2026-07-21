@@ -49,4 +49,10 @@ python3 tools/aif/aif.py check          # runs ALL gates (CI + pre-commit call t
 python3 tools/aif/aif.py check --quick  # stdlib gates only (fast, pre-commit default)
 ```
 
-`check` composes: the skill linter, `compile --check` (role envelopes + `compiled/` drift), `agents render --check` (model drift), and the Python/shell/node test suites.
+`check` composes: the skill linter, `compile --check` (role envelopes + `compiled/` drift), `agents render --check` (model drift), pack validation, and the Python/shell/node test suites. To run one gate directly:
+
+```bash
+python3 tools/lint-skills/check.py
+python3 tools/aif/aif.py compile --check
+python3 -m pytest tools/aif/tests/ tools/lint-skills/tests/ tools/delegate/tests/ -q
+```

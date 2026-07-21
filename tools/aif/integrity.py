@@ -16,19 +16,21 @@ Gates, in order:
   partials           sh skills/partials/tests/run.sh         (skip if sh absent)
   workflows          node --test skills/workflows/tests/     (skip if node absent)
 
-`--quick` runs only the three always-available stdlib gates (the pre-commit
-default: fast, no test runners). Full run is the CI default.
+`--quick` runs only the always-available stdlib gates — lint-skills, compile,
+agents-render, and pack validation when packs/ exists — skipping the test
+runners (the pre-commit default). Full run is the CI default.
 """
 
 import os
 import subprocess
 import sys
 
-_GREEN = "\033[0;32m"
-_RED = "\033[0;31m"
-_DIM = "\033[2m"
-_YEL = "\033[0;33m"
-_NC = "\033[0m"
+_TTY = sys.stdout.isatty()
+_GREEN = "\033[0;32m" if _TTY else ""
+_RED = "\033[0;31m" if _TTY else ""
+_DIM = "\033[2m" if _TTY else ""
+_YEL = "\033[0;33m" if _TTY else ""
+_NC = "\033[0m" if _TTY else ""
 
 
 def _repo_root():
@@ -54,6 +56,11 @@ def _pytest_available():
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
+    unknown = [a for a in argv if a not in ("--quick",)]
+    if unknown:
+        print(f"aif check: unknown argument(s): {' '.join(unknown)} (usage: aif check [--quick])",
+              file=sys.stderr)
+        return 2
     quick = "--quick" in argv
     root = _repo_root()
     py = sys.executable
@@ -110,6 +117,7 @@ def main(argv=None):
         summary += f", {len(skipped)} skipped ({', '.join(skipped)})"
     if failed:
         summary += f", {_RED}{len(failed)} failed ({', '.join(failed)}){_NC}"
+        sys.stdout.flush()
         print(summary, file=sys.stderr)
         return 1
     print(f"{_GREEN}{summary}{_NC}")

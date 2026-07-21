@@ -1,4 +1,11 @@
-"""Tests for perm_audit — the standing-grant risk classifier."""
+"""Tests for perm_audit — the standing-grant risk classifier.
+
+Encodes the reviewed classification contract: destructive/credential grants are
+remove-class in ANY common spelling (no `rm -fr` bypass), benign lookalikes
+(.env.example, $MONKEY, docs/credentials.md) never flag, ambiguous .env access
+is review-class (surfaced, never doctor-red), and deliberate keeps live in
+.claude/permissions-audit-exemptions.json as exempt-class findings.
+"""
 
 import json
 import os
@@ -11,10 +18,15 @@ import perm_audit as pa  # noqa: E402
 def test_remove_class_patterns():
     for rule in (
         "Bash(rm -rf build)",
+        "Bash(rm -fr build)",            # reversed flags — must not bypass
+        "Bash(rm -f -r build)",          # split flags
+        "Bash(rm --recursive --force x)",
         "Bash(git push --force origin main)",
+        "Bash(git push origin +main)",   # refspec force-push
         'Bash(curl -H "Authorization: Bearer $API_TOKEN" https://x)',
+        "Bash(echo $DB_PASSWORD)",
         "Bash(cat ~/.aws/credentials)",
-        "Bash(cat .env)",
+        "Bash(cat ~/.ssh/id_rsa)",
         "Bash(security find-generic-password -s x)",
     ):
         klass, why = pa.classify_rule(rule)
@@ -22,29 +34,67 @@ def test_remove_class_patterns():
         assert why
 
 
+def test_benign_lookalikes_are_keep():
+    # The false positives the adversarial review reproduced — must stay keep.
+    for rule in (
+        "Read(.env.example)",
+        "Bash(cp .env.example .env.sample)",
+        "Bash(echo $MONKEY)",                 # contains KEY, not a key
+        "Bash(setxkbmap $KEYBOARD_LAYOUT)",   # starts with KEY, not a key
+        "Read(docs/credentials.md)",
+        "Bash(git push:*)",                   # plain push is not force-push
+        "Bash(rm file.txt)",                  # non-recursive rm
+        "Bash(make build:*)",
+        "Bash(gh pr view:*)",
+    ):
+        assert pa.classify_rule(rule)[0] is None, rule
+
+
+def test_env_file_access_is_review_not_remove():
+    # cat .env reads secrets; cp .env.example .env is setup — regex can't tell,
+    # so both surface for a human without failing doctor.
+    for rule in ("Bash(cat .env)", "Bash(cp .env.example .env)"):
+        assert pa.classify_rule(rule)[0] == "review", rule
+
+
 def test_review_class_broad_wildcards():
     for rule in ("Bash(*)", "Bash(:*)", "Read(*)"):
         assert pa.classify_rule(rule)[0] == "review", rule
 
 
-def test_keep_class_bounded_rules():
-    for rule in ("Bash(make build:*)", "Bash(gh pr view:*)", "Read(src/**)",
-                 "Bash(go test:*)"):
-        assert pa.classify_rule(rule)[0] is None, rule
-
-
-def test_audit_dir_merges_and_flags(tmp_path):
+def test_audit_dir_merges_sources_and_flags(tmp_path):
     cd = tmp_path / ".claude"
     cd.mkdir()
     (cd / "settings.json").write_text(json.dumps(
         {"permissions": {"allow": ["Bash(make build:*)", "Bash(rm -rf:*)"]}}))
     (cd / "settings.local.json").write_text(json.dumps(
-        {"permissions": {"allow": ["Bash(cat ~/.ssh/id_rsa)"]}}))
+        {"permissions": {"allow": ["Bash(rm -rf:*)", "Bash(cat ~/.ssh/id_rsa)"]}}))
+    findings = {f["rule"]: f for f in pa.audit_dir(str(tmp_path))}
+    assert findings["Bash(rm -rf:*)"]["class"] == "remove"
+    # a rule in both files carries both sources (dedup would mislead cleanup)
+    assert "settings.json" in findings["Bash(rm -rf:*)"]["source"]
+    assert "settings.local.json" in findings["Bash(rm -rf:*)"]["source"]
+    assert "Bash(make build:*)" not in findings
+
+
+def test_exemptions_reclassify_without_failing(tmp_path):
+    cd = tmp_path / ".claude"
+    cd.mkdir()
+    (cd / "settings.json").write_text(json.dumps(
+        {"permissions": {"allow": ["Bash(rm -rf:*)"]}}))
+    (cd / "permissions-audit-exemptions.json").write_text(json.dumps(
+        {"exempt": {"Bash(rm -rf:*)": "scoped to build dirs by convention"}}))
     findings = pa.audit_dir(str(tmp_path))
-    classes = {f["rule"]: f["class"] for f in findings}
-    assert classes.get("Bash(rm -rf:*)") == "remove"
-    assert classes.get("Bash(cat ~/.ssh/id_rsa)") == "remove"
-    assert "Bash(make build:*)" not in classes  # keep-class not reported
+    assert findings[0]["class"] == "exempt"
+    assert "scoped to build dirs" in findings[0]["why"]
+
+
+def test_malformed_settings_is_surfaced_not_certified_clean(tmp_path):
+    cd = tmp_path / ".claude"
+    cd.mkdir()
+    (cd / "settings.json").write_text("{not json")
+    findings = pa.audit_dir(str(tmp_path))
+    assert any(f["class"] == "review" and "could not audit" in f["why"] for f in findings)
 
 
 def test_no_settings_is_clean(tmp_path):

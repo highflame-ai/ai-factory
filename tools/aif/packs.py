@@ -38,12 +38,25 @@ def _repo_root():
     return os.path.dirname(os.path.dirname(here))
 
 
+def _unquote(v):
+    """Strip one layer of matching single/double quotes from a scalar."""
+    v = v.strip()
+    if len(v) >= 2 and v[0] == v[-1] and v[0] in ("'", '"'):
+        return v[1:-1]
+    return v
+
+
 def _strip_comment(v):
     # Drop an inline "# ..." comment that isn't inside quotes/braces.
-    out, depth, i = [], 0, 0
+    out, depth, i, quote = [], 0, 0, None
     while i < len(v):
         c = v[i]
-        if c in "{[":
+        if quote:
+            if c == quote:
+                quote = None
+        elif c in "'\"":
+            quote = c
+        elif c in "{[":
             depth += 1
         elif c in "}]":
             depth -= 1
@@ -63,14 +76,19 @@ def _parse_flow_map(s):
     if not (s.startswith("{") and s.endswith("}")):
         raise ValueError(f"not a flow map: {s!r}")
     inner = s[1:-1]
-    out, buf, depth = {}, [], 0
+    out, buf, depth, quote = {}, [], 0, None
     parts = []
     for c in inner:
-        if c in "{[":
+        if quote:
+            if c == quote:
+                quote = None
+        elif c in "'\"":
+            quote = c
+        elif c in "{[":
             depth += 1
         elif c in "}]":
             depth -= 1
-        if c == "," and depth == 0:
+        if c == "," and depth == 0 and quote is None:
             parts.append("".join(buf)); buf = []
         else:
             buf.append(c)
@@ -80,7 +98,7 @@ def _parse_flow_map(s):
         if ":" not in part:
             continue
         k, _, val = part.partition(":")
-        out[k.strip()] = val.strip()
+        out[k.strip()] = _unquote(val.strip())
     return out
 
 
@@ -101,7 +119,7 @@ def parse_pack(path):
         if indent == 0:
             key, _, value = body.partition(":")
             key, value = key.strip(), _strip_comment(value)
-            if value == ">":
+            if value in (">", ">-", ">+"):
                 # folded scalar: consume indented continuation lines
                 buf = []
                 while i < len(lines) and (not lines[i].strip() or (len(lines[i]) - len(lines[i].lstrip())) > 0):
@@ -111,14 +129,14 @@ def parse_pack(path):
             elif value == "":
                 cur_list = key if key in ("roles", "skills", "gates", "phases") else None
             else:
-                pack[key] = value
+                pack[key] = _unquote(value)
                 cur_list = None
         elif body.startswith("- ") and cur_list:
             item = _strip_comment(body[2:].strip())
             if item.startswith("{"):
                 pack[cur_list].append(_parse_flow_map(item))
             else:
-                pack[cur_list].append(item)
+                pack[cur_list].append(_unquote(item))
     return pack
 
 
@@ -151,6 +169,8 @@ def validate_pack(pack_dir):
         import compile as roles_compile
     except ImportError:
         roles_compile = None
+        print(f"note: {os.path.relpath(pack_dir, _repo_root())}: role-envelope validation "
+              "skipped (toolkit compile module unavailable)", file=sys.stderr)
     for rpath in pack.get("roles", []):
         full = os.path.join(pack_dir, str(rpath).lstrip("./"))
         stem = os.path.splitext(os.path.basename(str(rpath)))[0]
@@ -237,7 +257,12 @@ def validate_index(packs_dir, pack_manifests):
                     f"packs/index.yaml: '{pid}' {key} is {e.get(key)!r}, "
                     f"pack.yaml says {want!r} — regenerate (bin/gen-pack-index.sh)"
                 )
-    for pid in indexed:
+    for pid, e in indexed.items():
+        # A dir that exists but failed to parse is already reported as a parse
+        # error — don't stack a misleading "phantom" on top of it.
+        entry_dir = os.path.join(os.path.dirname(packs_dir), e.get("path", ""))
+        if e.get("path") and os.path.isdir(entry_dir):
+            continue
         problems.append(f"packs/index.yaml: phantom entry '{pid}' (no such pack dir) — regenerate")
     return problems
 
@@ -253,6 +278,14 @@ def main(argv=None):
         if os.path.isfile(os.path.join(packs_dir, d, "pack.yaml"))
     ]
     if not dirs:
+        # Still check the index: a packs/ dir with an index but no manifests
+        # means the index has phantom entries.
+        problems = validate_index(packs_dir, {}) if os.path.isfile(
+            os.path.join(packs_dir, "index.yaml")) else []
+        for pr in problems:
+            print(pr, file=sys.stderr)
+        if problems:
+            return 1
         print("packs/ has no pack.yaml manifests — nothing to validate")
         return 0
     all_problems = []

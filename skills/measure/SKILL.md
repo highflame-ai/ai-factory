@@ -38,11 +38,14 @@ Compute over the window; state the denominator for each so a small sample isn't 
 
 ```bash
 SINCE="${SINCE:-90 days ago}"
+SINCE_DATE=$(date -v-90d +%Y-%m-%d 2>/dev/null || date -d "$SINCE" +%Y-%m-%d)  # honor --since here too
 # throughput
 git log --since="$SINCE" --merges --oneline | wc -l          # merged PRs (merge-commit repos)
-# cycle time (per merged PR): open -> merge; via the forge adapter, not raw gh
+# cycle time (per merged PR): open -> merge. The flags below are GitHub-shaped
+# passthrough; on Azure DevOps adapt them (az repos pr list --status completed)
+# or skip cycle time with a note — do NOT silence errors and report empty data.
 . .aif/partials/forge.sh 2>/dev/null || . ~/.claude/skills/partials/forge.sh
-aif_forge_pr_list --state merged --search "merged:>$(date -v-90d +%Y-%m-%d 2>/dev/null || date -d '90 days ago' +%Y-%m-%d)" --json number,createdAt,mergedAt 2>/dev/null | head
+aif_forge_pr_list --state merged --search "merged:>$SINCE_DATE" --json number,createdAt,mergedAt | head
 # rework signal: reverts and fix-of-recent-fix
 git log --since="$SINCE" --oneline | grep -ciE '\brevert\b'
 ```

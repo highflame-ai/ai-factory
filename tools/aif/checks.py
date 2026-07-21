@@ -491,21 +491,26 @@ def check_permissions_audit(profile: Profile):
     findings = perm_audit.audit_dir(project)
     remove = [f for f in findings if f["class"] == "remove"]
     review = [f for f in findings if f["class"] == "review"]
+    exempt = [f for f in findings if f["class"] == "exempt"]
+    where = os.path.basename(project) or project
+    extras = ""
+    if review or exempt:
+        bits = []
+        if review:
+            bits.append(f"{len(review)} worth a look")
+        if exempt:
+            bits.append(f"{len(exempt)} exempted")
+        extras = f" ({'; '.join(bits)} — /audit-permissions)"
     if remove:
         rules = ", ".join(f["rule"] for f in remove[:3])
         more = f" (+{len(remove) - 3} more)" if len(remove) > 3 else ""
         return (
             Result.FAIL,
-            f"{len(remove)} risky standing permission grant(s): {rules}{more}",
-            "/audit-permissions   # review and remove; or edit .claude/settings*.json",
+            f"[{where}] {len(remove)} risky standing permission grant(s): {rules}{more}",
+            "/audit-permissions   # review/remove, or record a deliberate keep in "
+            ".claude/permissions-audit-exemptions.json",
         )
-    if review:
-        return (
-            Result.PASS,
-            f"no risky grants; {len(review)} broad rule(s) worth a look (/audit-permissions)",
-            "",
-        )
-    return Result.PASS, "no risky standing permission grants", ""
+    return Result.PASS, f"[{where}] no risky standing permission grants{extras}", ""
 
 
 # --- template version (consumer-project staleness pointer) -----------------

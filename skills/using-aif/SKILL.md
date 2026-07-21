@@ -28,8 +28,8 @@ Task arrives
     │
     ├── AIF pipeline (spec-driven lifecycle):
     │   ├── "Set up .aif/ in a repo"                               ──→ /init
-    │   ├── "Adopt the toolkit in an existing codebase"           ──→ /onboard
-    │   ├── "Is the toolkit paying off? / baseline metrics"       ──→ /measure
+    │   ├── "Adopt the toolkit in an existing codebase"            ──→ /onboard
+    │   ├── "Is the toolkit paying off? / baseline metrics"        ──→ /measure
     │   ├── "Write a spec for this feature request"                ──→ /spec
     │   ├── "Design + break spec into tasks"                       ──→ /architect
     │   ├── "Run the whole pipeline for REQ-xxx"                   ──→ /proceed
@@ -61,7 +61,7 @@ Task arrives
     ├── "Update dependencies / anything vulnerable?"               ──→ /dep-update
     ├── "Are our licenses clean? / build an SBOM"                  ──→ /license-audit
     ├── "What secrets are expiring? / rotate <credential>"         ──→ /rotate-secrets
-    ├── "Clean up accumulated Claude permission grants"           ──→ /audit-permissions
+    ├── "Clean up accumulated Claude permission grants"            ──→ /audit-permissions
     ├── "Are the docs stale after this change?"                    ──→ /doc-drift
     ├── "What shipped since <tag>? / draft release notes"          ──→ /release-notes
     ├── "Threat-model this spec before we build it"                ──→ /threat-model

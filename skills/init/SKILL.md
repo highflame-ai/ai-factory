@@ -51,7 +51,7 @@ If a `CLAUDE.md`, `README.md`, or `package.json` exists, extract this info autom
       .gitkeep
     lessons/
       .gitkeep
-  experts/               # Domain experts (path-scoped curated context) — authored via /expert; created on first use
+  experts/               # Domain experts (path-scoped curated context) — scaffolded empty here; populated via /expert
     .gitkeep
   templates/             # Copies of ~/.claude/skills/templates/*.md — ensures skills work inside git worktrees
     assumption-template.md

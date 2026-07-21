@@ -144,7 +144,7 @@ Skills that span multiple phases (`/proceed`) write a `pipeline-state.json` next
 ## What NOT to do
 
 - **Don't create new skill directories casually**: each new skill is a commitment to maintain. Prefer extending an existing skill unless the new responsibility is genuinely orthogonal.
-- **Put domain knowledge in the right layer**: platform-wide facts → `workspace-CLAUDE.md`; cross-cutting checklists → `references/`; one domain's curated context → an expert (`/expert`, path-scoped, injected only in-domain); a single past surprise → a lesson.
+- **Don't put domain knowledge in the wrong layer**: platform-wide facts → `workspace-CLAUDE.md`; cross-cutting checklists → `references/`; one domain's curated context → an expert (`/expert`, path-scoped, injected only in-domain); a single past surprise → a lesson.
 - **Don't bypass ethos**: the ETHOS principles (especially #5 Verification Is Non-Negotiable and #6 Deterministic Gates, Not Vibes) exist because shortcuts silently fail. If you're tempted to skip a validation gate or add a `--no-verify` flag, surface the tension to the user instead.
 - **Don't duplicate context loading logic**: if the same bash macro appears in three or more skills, extract it to `skills/partials/<name>.sh` and source it from each call site (see the Ethos injection pattern above).
 - **Don't hardcode org-specific values anywhere**: skills and agents must work for any adopting org. Org-specific behavior goes through `.aif/config.yml` (the `org:`/`environments:`/`mcp:`/`local_stack:`/`regression:`/`tenancy:` sections in `templates/config-template.yml`) or an angle-bracket `<placeholder>`, and every config-dependent step states its graceful degradation when the key is absent.

@@ -66,7 +66,7 @@ Show the user every draft with its provenance and its gaps (what you couldn't de
 - Every expert's `applies_to` matches real files (`git ls-files <glob>`).
 - `.aif/config.yml` parses and its `repos:` paths exist.
 - The service map names match the repos in config.
-- Point the user at `/expert` (add domains), `/measure` (baseline metrics now, to measure adoption impact later), and `aif check` (wire CI).
+- Point the user at `/expert` (add domains) and `/measure` (baseline metrics now, to measure adoption impact later). Note: `aif check` gates the *toolkit* repo itself — this project's CI should run its own tests/linters; the toolkit's hooks arrive via the distributed `.claude/settings.json`.
 
 ## Failure modes to avoid
 

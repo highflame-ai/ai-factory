@@ -1,6 +1,7 @@
 # ai-factory integrity CI — runs the single gate the toolkit ships.
 # `aif check` composes lint-skills, compile --check, agents render --check,
-# and the Python/shell/node test suites; it fails iff a gate that ran failed.
+# pack validation, and the Python/shell/node test suites; it fails iff a
+# gate that ran failed.
 name: aif check
 on:
   push:

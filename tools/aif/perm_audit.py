@@ -88,7 +88,10 @@ def _load_allow(path):
         return {}, None
     except (OSError, json.JSONDecodeError) as exc:
         return {}, f"{os.path.basename(path)} unreadable/unparseable ({exc.__class__.__name__})"
-    allow = (data.get("permissions") or {}).get("allow") or []
+    if not isinstance(data, dict):
+        return {}, f"{os.path.basename(path)} is valid JSON but not a settings object"
+    permissions = data.get("permissions")
+    allow = (permissions.get("allow") if isinstance(permissions, dict) else None) or []
     return {rule: os.path.basename(path) for rule in allow if isinstance(rule, str)}, None
 
 

@@ -100,3 +100,14 @@ def test_malformed_settings_is_surfaced_not_certified_clean(tmp_path):
 def test_no_settings_is_clean(tmp_path):
     assert not pa.has_settings(str(tmp_path))
     assert pa.audit_dir(str(tmp_path)) == []
+
+
+def test_non_object_json_is_surfaced_not_crashed(tmp_path):
+    # valid JSON that isn't a settings object (gemini-code-assist finding on PR #3)
+    cd = tmp_path / ".claude"
+    cd.mkdir()
+    (cd / "settings.json").write_text("[]")
+    findings = pa.audit_dir(str(tmp_path))
+    assert any(f["class"] == "review" and "not a settings object" in f["why"] for f in findings)
+    (cd / "settings.json").write_text('{"permissions": []}')  # permissions wrong type
+    assert isinstance(pa.audit_dir(str(tmp_path)), list)  # no crash

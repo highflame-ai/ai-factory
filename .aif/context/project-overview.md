@@ -27,7 +27,8 @@ Symlink-based live install. One canonical git clone on disk, symlinked at `~/.cl
 | Agents | `agents/<agent-name>.md` | Specialized subagent definitions with tool restrictions and tier-based model selection (`aif agents render`) |
 | Hooks | `hooks/*.sh` | Deterministic gates and formatters wired through each repo's `.claude/settings.json` |
 | References | `references/*.md` | On-demand checklists — several are fill-in templates an adopting org completes |
-| Templates | `templates/*` | Canonical templates for requirements, bugs, lessons, tasks, config, settings |
+| Templates | `templates/*` | Canonical templates for requirements, bugs, lessons, tasks, config, settings, experts |
+| Experts | `.aif/experts/*` (per project) | Path-scoped domain context authored via `/expert`, activated by `applies_to` glob match |
 | Partials | `partials/*.sh` | Shared POSIX shell functions sourced by skills (forge adapter, id allocation, telemetry) |
 | Workflows | `workflows/*.workflow.js` | Deterministic Dynamic-Workflow scripts (`/sprint --workflow`) |
 | Ethos | `ETHOS.md` | The principles injected into every AIF skill |

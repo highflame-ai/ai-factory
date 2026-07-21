@@ -5,7 +5,7 @@ ai-factory is an opinionated toolkit for AI-assisted software engineering: skill
 ## Layout
 
 ```
-skills/           37 skills (<name>/SKILL.md) + partials/ templates/ workflows/ presets/ ETHOS.md
+skills/           41 skills (<name>/SKILL.md) + partials/ templates/ workflows/ presets/ ETHOS.md
 agents/           26 subagent definitions (frontmatter: tier -> role, tools, rendered model)
 roles/            capability model — single source of truth for what each agent role may do
 compiled/         GENERATED from roles/ by `aif compile` — never hand-edit
@@ -45,10 +45,8 @@ Then, per code repo: run `/init` in a Claude Code session to bootstrap its `.aif
 ## Verify before committing
 
 ```bash
-python3 tools/lint-skills/check.py                     # skill linter (must be clean)
-python3 tools/aif/aif.py compile --check               # role envelopes + compiled/ drift
-python3 tools/aif/aif.py agents render --check         # model frontmatter drift
-python3 -m pytest tools/aif/tests/ tools/lint-skills/tests/ tools/delegate/tests/ -q
-sh skills/partials/tests/run.sh
-cd skills/workflows && node --test tests/helpers.test.js
+python3 tools/aif/aif.py check          # runs ALL gates (CI + pre-commit call this)
+python3 tools/aif/aif.py check --quick  # stdlib gates only (fast, pre-commit default)
 ```
+
+`check` composes: the skill linter, `compile --check` (role envelopes + `compiled/` drift), `agents render --check` (model drift), and the Python/shell/node test suites.

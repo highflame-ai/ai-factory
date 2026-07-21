@@ -13,6 +13,7 @@ The ai-factory toolkit is **knowledge + skills + subagents + hooks + MCP**, laye
 | --------------------------------- | --------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `workspace-CLAUDE.md`             | Yes (every session under the workspace) | Free, in context       | Service map, auth contract, multi-tenancy rules, daily commands                                                  |
 | `references/*.md`                 | No — load on demand                     | Pay only when relevant | Detailed checklists (multi-tenancy, JWT, migration safety, MCP cheatsheet, commit prefixes, regression markers)  |
+| Experts (`.aif/experts/*.md`)     | No — activate by path match             | Pay only in-domain     | Curated domain context (a framework, service, data store, product area), injected when a change touches its paths |
 | Subagents (`agents/*.md`)         | No — invoke when task fits              | Own context window     | Audit / research / orchestration over multiple files or repos                                                    |
 | Skills (`<skill>/SKILL.md`)       | No — invoke when task fits              | Choreographed steps    | Recurring multi-step workflows (spec a feature, run the pipeline, add a module, ship a PR, triage the dev env)   |
 | Hooks (`hooks/*.sh`)              | Deterministic — fire on events          | Free                   | Formatters, secret scan, commit-prefix gate, precommit gate, session reflection                                  |
@@ -27,6 +28,8 @@ Task arrives
     │
     ├── AIF pipeline (spec-driven lifecycle):
     │   ├── "Set up .aif/ in a repo"                               ──→ /init
+    │   ├── "Adopt the toolkit in an existing codebase"           ──→ /onboard
+    │   ├── "Is the toolkit paying off? / baseline metrics"       ──→ /measure
     │   ├── "Write a spec for this feature request"                ──→ /spec
     │   ├── "Design + break spec into tasks"                       ──→ /architect
     │   ├── "Run the whole pipeline for REQ-xxx"                   ──→ /proceed
@@ -34,6 +37,7 @@ Task arrives
     │   ├── "Gate-check a phase output"                            ──→ /validate
     │   ├── "Self-review before formal review"                     ──→ /reflect
     │   ├── "Multi-agent review of this change"                    ──→ /review
+    │   ├── "Capture what someone working in <area> must know"     ──→ /expert
     │   ├── "Assume this artifact is wrong; prove it"              ──→ /adversary
     │   ├── "Fix this bug (report→fix→verify→ship)"                ──→ /bugfix
     │   ├── "Canary deploy with smoke tests"                       ──→ /canary
@@ -57,6 +61,7 @@ Task arrives
     ├── "Update dependencies / anything vulnerable?"               ──→ /dep-update
     ├── "Are our licenses clean? / build an SBOM"                  ──→ /license-audit
     ├── "What secrets are expiring? / rotate <credential>"         ──→ /rotate-secrets
+    ├── "Clean up accumulated Claude permission grants"           ──→ /audit-permissions
     ├── "Are the docs stale after this change?"                    ──→ /doc-drift
     ├── "What shipped since <tag>? / draft release notes"          ──→ /release-notes
     ├── "Threat-model this spec before we build it"                ──→ /threat-model

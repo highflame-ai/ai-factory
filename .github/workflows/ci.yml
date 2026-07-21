@@ -1,0 +1,26 @@
+# ai-factory integrity CI — runs the single gate the toolkit ships.
+# `aif check` composes lint-skills, compile --check, agents render --check,
+# and the Python/shell/node test suites; it fails iff a gate that ran failed.
+name: aif check
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install test deps
+        run: python -m pip install --quiet pytest
+      - name: Install jq (hooks + fleet scripts parse hook stdin with it)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq jq
+      - name: aif check
+        run: python3 tools/aif/aif.py check

@@ -471,6 +471,43 @@ def check_launchctl(profile: Profile):
     )
 
 
+# --- permissions audit (standing-grant risk in the consumer project) -------
+
+def check_permissions_audit(profile: Profile):
+    """Classify the CURRENT project's accumulated permission grants by risk.
+
+    Audits `.claude/settings.json` + `.claude/settings.local.json` in the cwd
+    (the project doctor is run in), not the toolkit repo. FAIL iff any
+    `remove`-class standing grant exists (destructive command, inline
+    credential, credential-store read); `review`-class (broad wildcards) is
+    reported but does not fail — same page-don't-block posture as license-audit.
+    Shares the classifier with the `/audit-permissions` skill (perm_audit.py).
+    """
+    import perm_audit  # local module, stdlib
+
+    project = os.getcwd()
+    if not perm_audit.has_settings(project):
+        return Result.SKIP, "no .claude/settings.json in this directory", ""
+    findings = perm_audit.audit_dir(project)
+    remove = [f for f in findings if f["class"] == "remove"]
+    review = [f for f in findings if f["class"] == "review"]
+    if remove:
+        rules = ", ".join(f["rule"] for f in remove[:3])
+        more = f" (+{len(remove) - 3} more)" if len(remove) > 3 else ""
+        return (
+            Result.FAIL,
+            f"{len(remove)} risky standing permission grant(s): {rules}{more}",
+            "/audit-permissions   # review and remove; or edit .claude/settings*.json",
+        )
+    if review:
+        return (
+            Result.PASS,
+            f"no risky grants; {len(review)} broad rule(s) worth a look (/audit-permissions)",
+            "",
+        )
+    return Result.PASS, "no risky standing permission grants", ""
+
+
 # --- template version (consumer-project staleness pointer) -----------------
 
 def check_template_version(profile: Profile):
@@ -561,5 +598,6 @@ REGISTRY = [
         skip_notice="launchctl is macOS-only",
     ),
     Check("template-version", check_template_version),
+    Check("permissions-audit", check_permissions_audit),
     Check("claude-code", check_claude_code),
 ]

@@ -23,6 +23,8 @@ aif --version
 | `agents render` | Render `agents/*.md` `model:` frontmatter from tier classes + config (below). |
 | `compile` | Emit the `roles/*.yaml` capability model to codex/copilot/cedar targets under `compiled/`, and validate `agents/*.md` `tools:` frontmatter against role envelopes. `--check` regenerates in memory and fails (non-zero) on drift or violations — the CI gate. See `roles/README.md`. |
 | `renumber` | Rename an artifact id repo-wide, collision-safe (dry-run by default). |
+| `check` | Run every toolkit integrity gate in one command — lint-skills, `compile --check`, `agents render --check`, pack validation, and the test suites; skips a gate whose runner is absent, fails iff a gate that ran failed. `--quick` = stdlib gates only. What `.github/workflows/ci.yml` and `.pre-commit-config.yaml` call. |
+| `packs` (via `packs.py`) | Validate every `packs/<id>/pack.yaml` against `codeoid/pack@v1`: required keys, constitution exists, each role file parses as a valid capability role (reuses the toolkit role parser), and phase/gate references resolve. Run by `aif check`. |
 
 ## `aif doctor`
 
@@ -57,6 +59,7 @@ and re-run doctor; it should turn green.
 | `counters` | each `~/.claude/.global-next-{req,bug,lesson}` is numeric, no stale lock | `printf <n> > …` / `rmdir …lock.d` | a counter that doesn't exist yet (first run) |
 | `launchctl` | (macOS) delegate setenv LaunchAgent loaded *when delegation is on* | `launchctl bootstrap gui/$(id -u) <plist>` | Linux (macOS-only); delegation off |
 | `template-version` | project `.aif/` scaffold present | run `/template-drift` to compare | run outside a consumer project |
+| `permissions-audit` | the cwd project's `.claude/settings*.json` allow-list has no risky standing grants | `/audit-permissions` (or edit the allow-list) | no `.claude/settings*.json` in cwd |
 | `claude-code` | (report-only) `claude` on PATH | never fails the verdict | `claude` not detected |
 
 ### The `delegate-gate` check (reuses REQ-515)

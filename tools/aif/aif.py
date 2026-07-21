@@ -83,6 +83,13 @@ def _cmd_compile(argv):
     return roles_compile.main(argv)
 
 
+def _cmd_check(argv):
+    """Lazy-import the unified integrity gate and delegate to its main()."""
+    import integrity  # noqa: E402  (renamed from check.py to avoid pytest name-collision with lint-skills/check.py)
+
+    return integrity.main(argv)
+
+
 # Data-driven subcommand registry. Adding a command = appending one entry;
 # dispatch below never changes. Each handler takes the remaining argv (the
 # args AFTER the subcommand name) and returns an int exit code.
@@ -98,6 +105,10 @@ SUBCOMMANDS = {
     "renumber": {
         "handler": _cmd_renumber,
         "help": "rename an artifact id repo-wide, collision-safe (dry-run by default)",
+    },
+    "check": {
+        "handler": _cmd_check,
+        "help": "run every toolkit integrity gate (lint, compile, agents, tests); --quick for stdlib-only",
     },
     "compile": {
         "handler": _cmd_compile,

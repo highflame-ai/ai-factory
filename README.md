@@ -26,7 +26,7 @@ cd ai-factory && ./install.sh
 | `~/.claude/aif-references` | `references/` | on-demand checklists |
 | `<workspace>/CLAUDE.md` | `workspace-CLAUDE.md` | always-loaded workspace context (fill-in template). Workspace root: `AIF_WORKSPACE` env → `~/.claude/aif/config.yml` `workspace.root` → the clone's parent dir |
 
-It also writes the `aif` CLI shim to `~/bin` (`doctor`, `agents render`, `compile`, `renumber`), scaffolds `~/.claude/aif/config.yml` (delegation **off** by default), and finishes with `aif doctor` — a full environment health check that prints a copy-pasteable fix for every failure. `./install.sh --dry-run` previews; `--repair` re-stamps after moving the clone.
+It also writes the `aif` CLI shim to `~/bin` (`doctor`, `check`, `agents render`, `compile`, `renumber`), scaffolds `~/.claude/aif/config.yml` (delegation **off** by default), and finishes with `aif doctor` — a full environment health check that prints a copy-pasteable fix for every failure. `./install.sh --dry-run` previews; `--repair` re-stamps after moving the clone.
 
 ### Make it yours
 
@@ -45,6 +45,8 @@ The journey: install → fill in `workspace-CLAUDE.md` and the machine config (`
 | Skill | Description |
 |-------|-------------|
 | `/init` | Bootstrap `.aif/` structure in a repo |
+| `/onboard` | Adopt the toolkit in an existing codebase — drafts the service map, starter experts, conventions, and config for review |
+| `/measure` | Measure whether the toolkit is paying off — delivery/quality metrics from git, PRs, and `.aif/` artifacts, with honest caveats |
 | `/spec` | Write requirement specs from feature requests |
 | `/architect` | Design architecture and break requirements into tasks |
 | `/validate` | Validate any AIF phase output before advancing |
@@ -87,8 +89,10 @@ Core workflow:
 | `/dep-update` | Vetted dependency updates — changelog risk review, isolated branch, test-proven, one PR per batch |
 | `/license-audit` | SBOM + license compliance — resolve every component's license, judge against `org.license_policy` |
 | `/rotate-secrets` | Proactive secret rotation — expiry gate over the `secrets:` inventory, overlap-pattern rotation, human gate before revoke |
+| `/audit-permissions` | Review and prune risky standing Claude permission grants in `.claude/settings*.json` (pairs with `aif doctor`'s `permissions-audit`) |
 | `/doc-drift` | Find and fix docs made stale by a change — diff-derived surfaces, stale vs missing classification |
 | `/threat-model` | STRIDE threat model from a spec/RFC — assets, trust boundaries, refuted threats, mitigation punch list |
+| `/expert` | Curate a domain expert — path-scoped context distilled from your docs, injected only when a change touches its domain |
 | `/add-detector` | Template: scaffold a module in an extensible service, following your documented pattern |
 | `/new-admin-module` | Template: scaffold a CRUD module (schema → migration → repository → service → handler → registration) |
 
@@ -100,6 +104,10 @@ Core workflow:
 - **Scanners/explorers**: api-cost-scanner, db-perf-scanner, latency-scanner, architecture-mapper, convention-auditor, feature-tracer, integration-explorer, delegate-pre-pass
 - **Pipeline**: task-implementer, pipeline-runner
 - **Org workflow**: security-reviewer (invariant-driven audit), cross-repo-impact, migration-analyzer, pr-shepherd, gemini-reviewer, cedar-policy-reviewer (if you use Cedar), local-stack-runner, kind-regression-runner
+
+## Experts — path-scoped domain context
+
+[`/expert`](skills/expert/SKILL.md) curates a **domain expert**: dense context distilled from your own docs and code, stored at `.aif/experts/<name>.md`, and injected into a task **only when the change touches that domain** (matched by the expert's `applies_to` globs). Context engineering — React context on a React change, DynamoDB context on a data-access change, neither on unrelated work. `/review` activates matching experts automatically. `workspace-CLAUDE.md` holds facts true everywhere, `references/` are cross-cutting checklists, lessons are relevance-ranked incidents, experts are path-scoped domain knowledge.
 
 ## Roles — one capability definition, every agent runtime
 

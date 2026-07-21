@@ -51,12 +51,15 @@ If a `CLAUDE.md`, `README.md`, or `package.json` exists, extract this info autom
       .gitkeep
     lessons/
       .gitkeep
+  experts/               # Domain experts (path-scoped curated context) — authored via /expert; created on first use
+    .gitkeep
   templates/             # Copies of ~/.claude/skills/templates/*.md — ensures skills work inside git worktrees
     assumption-template.md
     bug-template.md
     lesson-template.md
     requirement-template.md
     task-template.md
+    expert-template.md
   partials/              # Copies of ~/.claude/skills/partials/*.sh — shared shell snippets sourced by SKILL.md files
     ethos-include.sh
   workflows/             # Copies of ~/.claude/skills/workflows/ RUNTIME files only — Dynamic Workflow scripts used by the workflow engine

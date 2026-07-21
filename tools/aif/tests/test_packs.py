@@ -1,0 +1,38 @@
+"""Tests for aif packs — codeoid pack validator."""
+import os, sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+import packs  # noqa: E402
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+AIF_SDLC = os.path.join(ROOT, "packs", "aif-sdlc")
+
+
+def test_shipped_pack_is_valid():
+    assert packs.validate_pack(AIF_SDLC) == []
+
+
+def test_parse_extracts_pipeline():
+    pk = packs.parse_pack(os.path.join(AIF_SDLC, "pack.yaml"))
+    assert pk["schema"] == "codeoid/pack@v1"
+    assert {s["id"] for s in pk["skills"]} >= {"spec", "review", "wrapup"}
+    assert any(ph["role"] == "reviewer" for ph in pk["phases"])
+
+
+def test_unknown_phase_role_flagged(tmp_path):
+    d = tmp_path / "bad"
+    (d / "roles").mkdir(parents=True)
+    (d / "ETHOS.md").write_text("x")
+    (d / "roles" / "reviewer.yaml").write_text(
+        "name: reviewer\nsummary: r\nwrite: false\nenvelope:\n  - read\n")
+    (d / "pack.yaml").write_text(
+        "schema: codeoid/pack@v1\nid: bad\nname: Bad\nversion: 0.0.1\n"
+        "constitution: ./ETHOS.md\nroles:\n  - ./roles/reviewer.yaml\n"
+        "skills:\n  - { id: review, kind: slash, command: /review }\n"
+        "phases:\n  - { id: review, skill: review, role: ghost }\n")
+    problems = packs.validate_pack(str(d))
+    assert any("unknown role 'ghost'" in p for p in problems)
+
+
+def test_flow_map_parser():
+    m = packs._parse_flow_map("{ id: implement, gate: t, onFail: { retry: 2 } }")
+    assert m["id"] == "implement" and m["gate"] == "t"

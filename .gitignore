@@ -15,3 +15,7 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# Per-machine reflection inbox — session-reflect.sh appends here through the
+# ~/.claude/aif-references symlink; scratch until promoted to known-warts.md
+references/known-warts-inbox.md

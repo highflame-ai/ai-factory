@@ -1,12 +1,29 @@
 # ai-factory
 
-An opinionated, general-purpose toolkit for AI-assisted software engineering with [Claude Code](https://claude.com/claude-code): **skills, agents, hooks, references, and templates** in one repo, symlinked live into every session on your machine. Clone it, install it, and adopt a complete spec-driven development practice — then parameterize it to your org through config, not forks.
+**0→1 with an AI coding agent is easy. 1→100 is where it gets hard** — the code that survives review, scales past the demo, and doesn't quietly rot the codebase over months. That's where ai-factory comes in.
+
+A complete spec-driven development practice for AI coding agents — skills, agents, deterministic hooks, and a role-based capability model — installed once and parameterized to your org through config, not forks.
+
+<!-- TODO: demo — replace with a vhs/asciinema GIF of a real /proceed run (feature request → opened PR). Tape script: assets/demo.tape. Must be a genuine run, not staged output. -->
+
+**Why ai-factory**
+
+- **Faster** — across our own development at Highflame, the spec-driven pipeline plus parallel sprint orchestration routinely delivers **3–5x**: features/PRs shipped, bugs resolved, and time-to-merge, vs. ad-hoc AI-assisted coding. *(our internal experience — your mileage will vary)*
+- **Less slop** — deterministic gates, an adversarial multi-agent review bench, and a verification-is-non-negotiable ethos: unreviewed AI output can't reach `main`.
+- **Leaner context** — heavy research and review run in subagents with their own context windows; the main session stays focused.
+
+**Two ways to run it:**
+
+- **Standalone in [Claude Code](https://claude.com/claude-code)** — 41 skills as slash commands (`/spec → /architect → /proceed → /ship`), symlinked live into every session. Clone, `./install.sh`, go.
+- **Under [codeoid](https://github.com/highflame-ai/codeoid)** — the same methodology as a declarative pack on codeoid's multi-session runtime, with per-agent identity and cross-session memory: `codeoid run --pack aif-sdlc`.
+
+## How it's organized
 
 Three layers:
 
 1. **The AIF pipeline** — a spec-driven development lifecycle (spec → architect → validate → implement → reflect → review → ship) with parallel sprint orchestration, a multi-agent review bench, and the `aif` health CLI.
 2. **The org-workflow layer** — day-to-day engineering skills (issue-to-PR orchestration, debugging, deprecation, git conventions, session handoffs, environment triage), review agents, and deterministic hooks. Everything org-specific resolves through `.aif/config.yml` — nothing is hardcoded, and every skill states what it does when a config key is absent.
-3. **The pack registry** ([`packs/`](packs/)) — the same methodology, expressed as declarative [codeoid](https://github.com/highflame-ai/codeoid) packs (`schema: codeoid/pack@v1`). A pack is data-only (a `pack.yaml` + capability roles + constitution); codeoid runs its governed phase pipeline. Contribute a pack once, and any team can select it. See [`packs/README.md`](packs/README.md) — first pack: [`aif-sdlc`](packs/aif-sdlc/).
+3. **The pack registry** ([`packs/`](packs/)) — the methodology as declarative [codeoid](https://github.com/highflame-ai/codeoid) packs (`schema: codeoid/pack@v1`). A pack is data-only (a `pack.yaml` + capability roles + constitution); codeoid runs its governed phase pipeline. Contribute a pack once, and any team can select it. See [`packs/README.md`](packs/README.md) — first pack: [`aif-sdlc`](packs/aif-sdlc/).
 
 ## Setup
 
@@ -26,7 +43,7 @@ cd ai-factory && ./install.sh
 | `~/.claude/aif-references` | `references/` | on-demand checklists |
 | `<workspace>/CLAUDE.md` | `workspace-CLAUDE.md` | always-loaded workspace context (fill-in template). Workspace root: `AIF_WORKSPACE` env → `~/.claude/aif/config.yml` `workspace.root` → the clone's parent dir |
 
-It also writes the `aif` CLI shim to `~/bin` (`doctor`, `agents render`, `compile`, `renumber`), scaffolds `~/.claude/aif/config.yml` (delegation **off** by default), and finishes with `aif doctor` — a full environment health check that prints a copy-pasteable fix for every failure. `./install.sh --dry-run` previews; `--repair` re-stamps after moving the clone.
+It also writes the `aif` CLI shim to `~/bin` (`doctor`, `check`, `agents render`, `compile`, `renumber`), scaffolds `~/.claude/aif/config.yml` (delegation **off** by default), and finishes with `aif doctor` — a full environment health check that prints a copy-pasteable fix for every failure. `./install.sh --dry-run` previews; `--repair` re-stamps after moving the clone.
 
 ### Make it yours
 
@@ -45,6 +62,8 @@ The journey: install → fill in `workspace-CLAUDE.md` and the machine config (`
 | Skill | Description |
 |-------|-------------|
 | `/init` | Bootstrap `.aif/` structure in a repo |
+| `/onboard` | Adopt the toolkit in an existing codebase — drafts the service map, starter experts, conventions, and config for review |
+| `/measure` | Measure whether the toolkit is paying off — delivery/quality metrics from git, PRs, and `.aif/` artifacts, with honest caveats |
 | `/spec` | Write requirement specs from feature requests |
 | `/architect` | Design architecture and break requirements into tasks |
 | `/validate` | Validate any AIF phase output before advancing |
@@ -87,8 +106,10 @@ Core workflow:
 | `/dep-update` | Vetted dependency updates — changelog risk review, isolated branch, test-proven, one PR per batch |
 | `/license-audit` | SBOM + license compliance — resolve every component's license, judge against `org.license_policy` |
 | `/rotate-secrets` | Proactive secret rotation — expiry gate over the `secrets:` inventory, overlap-pattern rotation, human gate before revoke |
+| `/audit-permissions` | Review and prune risky standing Claude permission grants in `.claude/settings*.json` (pairs with `aif doctor`'s `permissions-audit`) |
 | `/doc-drift` | Find and fix docs made stale by a change — diff-derived surfaces, stale vs missing classification |
 | `/threat-model` | STRIDE threat model from a spec/RFC — assets, trust boundaries, refuted threats, mitigation punch list |
+| `/expert` | Curate a domain expert — path-scoped context distilled from your docs, injected only when a change touches its domain |
 | `/add-detector` | Template: scaffold a module in an extensible service, following your documented pattern |
 | `/new-admin-module` | Template: scaffold a CRUD module (schema → migration → repository → service → handler → registration) |
 
@@ -100,6 +121,10 @@ Core workflow:
 - **Scanners/explorers**: api-cost-scanner, db-perf-scanner, latency-scanner, architecture-mapper, convention-auditor, feature-tracer, integration-explorer, delegate-pre-pass
 - **Pipeline**: task-implementer, pipeline-runner
 - **Org workflow**: security-reviewer (invariant-driven audit), cross-repo-impact, migration-analyzer, pr-shepherd, gemini-reviewer, cedar-policy-reviewer (if you use Cedar), local-stack-runner, kind-regression-runner
+
+## Experts — path-scoped domain context
+
+[`/expert`](skills/expert/SKILL.md) curates a **domain expert**: dense context distilled from your own docs and code, stored at `.aif/experts/<name>.md`, and injected into a task **only when the change touches that domain** (matched by the expert's `applies_to` globs). Context engineering — React context on a React change, DynamoDB context on a data-access change, neither on unrelated work. `/review` activates matching experts automatically. `workspace-CLAUDE.md` holds facts true everywhere, `references/` are cross-cutting checklists, lessons are relevance-ranked incidents, experts are path-scoped domain knowledge. The `applies_to` globs are also the future compile key for path-scoped rules in other assistants (Copilot `applyTo`, Cursor globs) — that emission is the next phase.
 
 ## Roles — one capability definition, every agent runtime
 

@@ -32,6 +32,10 @@ it, then commit the result:
 bin/gen-pack-index.sh
 ```
 
+## Validation
+
+Every pack is validated by `aif check` (via `tools/aif/packs.py`): required keys, a resolvable constitution, roles that parse as valid capability roles (the same parser the toolkit uses for `agents/*.md`), phase/gate references that resolve, `slash`-kind skills that point at installed `skills/<name>/` dirs, and a fresh `index.yaml` (no missing/phantom entries; id/name/version/path agree with each `pack.yaml`). A malformed pack — or a stale index — fails CI before it reaches a codeoid runtime.
+
 ## Anatomy of a pack
 
 ```

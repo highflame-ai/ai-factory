@@ -26,6 +26,12 @@ new_sandbox() {
   SBX=$(mktemp -d -t idalloc.XXXXXX)
   HOME="$SBX/home"; export HOME; mkdir -p "$HOME/.claude"
   AIF_REPOS_ROOT="$SBX/repos"; export AIF_REPOS_ROOT; mkdir -p "$AIF_REPOS_ROOT"
+  # The sandbox HOME hides the dev's ~/.gitconfig, so `git init` here would use git's
+  # built-in default branch (master) while the helpers push content to `main` — leaving
+  # the bare remote's HEAD an unborn `master`, so `ls-remote origin HEAD` (the git-
+  # transport scan's default-tip probe) resolves to nothing. Pin the default branch so
+  # HEAD tracks where content actually lands. Real forges always set HEAD correctly.
+  git config --global init.defaultBranch main
 }
 make_remote_with_branch() { # make_remote_with_branch <branch> [<branch>...]
   BARE="$SBX/remote.git"; git init -q --bare "$BARE"

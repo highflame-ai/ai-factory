@@ -43,6 +43,11 @@ Rare; usually means you should rewrite the subject instead:
 CLAUDE_DISABLE_COMMIT_PREFIX_CHECK=1 git commit -m "..."
 ```
 
+The hook honors the marker both as a real env var and as a prefix inside the
+guarded command itself — necessary because PreToolUse hooks run *before* the
+command, in a separate process, so an assignment inside the command is
+invisible to the hook's own environment.
+
 ## Mirroring your CI
 
 If your org's CI enforces a commit-subject convention, keep this hook in sync with it — the CI config is the source of truth, and `org.commit_prefix_regex` should mirror it exactly. Two tips:

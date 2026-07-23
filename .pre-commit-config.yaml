@@ -1,0 +1,13 @@
+# ai-factory pre-commit — the fast integrity gate before every commit.
+# `--quick` runs the always-available stdlib gates (lint-skills, compile
+# --check, agents render --check, and pack validation when packs/ exists)
+# so commits stay fast; the full suite (tests) runs in CI. Install: `pip install pre-commit && pre-commit install`.
+repos:
+  - repo: local
+    hooks:
+      - id: aif-check
+        name: aif check (quick)
+        entry: python3 tools/aif/aif.py check --quick
+        language: system
+        pass_filenames: false
+        always_run: true

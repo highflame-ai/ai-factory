@@ -65,6 +65,15 @@ Sensitive surfaces always force **Full** regardless of size — the blast radius
 
 If the branch, PR, or argument references a REQ (branch name `feat/REQ-…`, PR body, or the argument itself), read that spec's `requirement.md` acceptance criteria and add to EVERY dispatched agent's inputs: the acceptance criteria list, plus the instruction "flag (a) any acceptance criterion the diff does not satisfy, and (b) any significant implemented behavior the spec never asked for — unrequested scope is a finding, not a bonus." Skip silently when no spec is linked.
 
+### Step 2d: Activate domain experts (path-scoped context)
+
+Experts are curated, path-scoped domain context (`.aif/experts/*.md`; authored via `/expert`). Unlike lessons (relevance-ranked from incidents) they activate by **path match**, so a change in a domain gets that domain's load-bearing context injected:
+
+a. If `.aif/experts/` is absent or empty, skip silently — experts are optional.
+b. Read each expert's frontmatter (`applies_to` globs). An expert **activates** when any of its globs matches any touched file in the diff.
+c. Read the body of every activated expert in full and pass it to every dispatched agent in Step 3, labeled by domain. When an activated expert names a `signal:` (its verify command), hand that to the test-auditor as the domain's expected verification.
+d. Note the activated experts in the report header (e.g. `experts: react-frontend, dynamodb-access`). No expert activated on a diff that clearly sits in a documented domain is itself a signal — mention it, so the gap gets an `/expert` later.
+
 ### Step 3: Launch Review Agents
 Launch the tier's agents **in parallel** using the Agent tool (5 for Full — listed below; the subset per Step 2b otherwise). Each agent is defined in `~/.claude/agents/` with its full checklist, model selection, and tool restrictions. Running in parallel minimizes wall-clock time.
 

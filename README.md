@@ -1,12 +1,29 @@
 # ai-factory
 
-An opinionated, general-purpose toolkit for AI-assisted software engineering with [Claude Code](https://claude.com/claude-code): **skills, agents, hooks, references, and templates** in one repo, symlinked live into every session on your machine. Clone it, install it, and adopt a complete spec-driven development practice — then parameterize it to your org through config, not forks.
+**0→1 with an AI coding agent is easy. 1→100 is where it gets hard** — the code that survives review, scales past the demo, and doesn't quietly rot the codebase over months. That's where ai-factory comes in.
+
+A complete spec-driven development practice for AI coding agents — skills, agents, deterministic hooks, and a role-based capability model — installed once and parameterized to your org through config, not forks.
+
+<!-- TODO: demo — replace with a vhs/asciinema GIF of a real /proceed run (feature request → opened PR). Tape script: assets/demo.tape. Must be a genuine run, not staged output. -->
+
+**Why ai-factory**
+
+- **Faster** — across our own development at Highflame, the spec-driven pipeline plus parallel sprint orchestration routinely delivers **3–5x**: features/PRs shipped, bugs resolved, and time-to-merge, vs. ad-hoc AI-assisted coding. *(our internal experience — your mileage will vary)*
+- **Less slop** — deterministic gates, an adversarial multi-agent review bench, and a verification-is-non-negotiable ethos: unreviewed AI output can't reach `main`.
+- **Leaner context** — heavy research and review run in subagents with their own context windows; the main session stays focused.
+
+**Two ways to run it:**
+
+- **Standalone in [Claude Code](https://claude.com/claude-code)** — 41 skills as slash commands (`/spec → /architect → /proceed → /ship`), symlinked live into every session. Clone, `./install.sh`, go.
+- **Under [codeoid](https://github.com/highflame-ai/codeoid)** — the same methodology as a declarative pack on codeoid's multi-session runtime, with per-agent identity and cross-session memory: `codeoid run --pack aif-sdlc`.
+
+## How it's organized
 
 Three layers:
 
 1. **The AIF pipeline** — a spec-driven development lifecycle (spec → architect → validate → implement → reflect → review → ship) with parallel sprint orchestration, a multi-agent review bench, and the `aif` health CLI.
 2. **The org-workflow layer** — day-to-day engineering skills (issue-to-PR orchestration, debugging, deprecation, git conventions, session handoffs, environment triage), review agents, and deterministic hooks. Everything org-specific resolves through `.aif/config.yml` — nothing is hardcoded, and every skill states what it does when a config key is absent.
-3. **The pack registry** ([`packs/`](packs/)) — the same methodology, expressed as declarative [codeoid](https://github.com/highflame-ai/codeoid) packs (`schema: codeoid/pack@v1`). A pack is data-only (a `pack.yaml` + capability roles + constitution); codeoid runs its governed phase pipeline. Contribute a pack once, and any team can select it. See [`packs/README.md`](packs/README.md) — first pack: [`aif-sdlc`](packs/aif-sdlc/).
+3. **The pack registry** ([`packs/`](packs/)) — the methodology as declarative [codeoid](https://github.com/highflame-ai/codeoid) packs (`schema: codeoid/pack@v1`). A pack is data-only (a `pack.yaml` + capability roles + constitution); codeoid runs its governed phase pipeline. Contribute a pack once, and any team can select it. See [`packs/README.md`](packs/README.md) — first pack: [`aif-sdlc`](packs/aif-sdlc/).
 
 ## Setup
 

@@ -23,7 +23,7 @@ skills:
   - { id: spec,      kind: slash, command: /spec }
   - { id: architect, kind: slash, command: /architect }
   - { id: validate,  kind: slash, command: /validate }
-  - { id: implement, kind: slash, command: /proceed }
+  - { id: implement, kind: slash, command: /incremental-implementation }
   - { id: review,    kind: slash, command: /review }
   - { id: wrapup,    kind: slash, command: /wrapup }
 

@@ -5,10 +5,39 @@ import packs  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 AIF_SDLC = os.path.join(ROOT, "packs", "aif-sdlc")
+ORG_DEV = os.path.join(ROOT, "packs", "org-dev")
 
 
 def test_shipped_pack_is_valid():
     assert packs.validate_pack(AIF_SDLC) == []
+
+
+def test_org_dev_pack_is_valid():
+    assert packs.validate_pack(ORG_DEV) == []
+
+
+def test_block_map_item_with_literal_template():
+    pk = packs.parse_pack(os.path.join(ORG_DEV, "pack.yaml"))
+    verify = next(s for s in pk["skills"] if isinstance(s, dict) and s.get("id") == "verify")
+    assert verify["kind"] == "prompt"
+    assert "\n" in verify["template"] and "regression" in verify["template"]
+
+
+def test_parse_block_item_literal(tmp_path):
+    p = tmp_path / "pack.yaml"
+    p.write_text(
+        "schema: codeoid/pack@v1\n"
+        "skills:\n"
+        "  - id: v\n"
+        "    kind: prompt\n"
+        "    template: |\n"
+        "      line one\n"
+        "\n"
+        "      line three\n"
+        "  - { id: s, kind: slash, command: /review }\n")
+    pk = packs.parse_pack(str(p))
+    assert pk["skills"][0] == {"id": "v", "kind": "prompt", "template": "line one\n\nline three"}
+    assert pk["skills"][1]["id"] == "s"
 
 
 def test_parse_extracts_pipeline():

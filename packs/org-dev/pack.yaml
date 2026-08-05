@@ -1,0 +1,83 @@
+schema: codeoid/pack@v1
+id: org-dev
+name: Org Feature Delivery
+version: 0.1.0
+description: >
+  Day-to-day feature delivery, governed per phase: prep (spec-registry +
+  test-placement decision) → implement (thin vertical slices) → verify
+  (local stack + org regression suite when the change is cross-cutting)
+  → review (read-only bench) → ship (reviewer fan-out, PR, CI shepherding).
+  Org specifics (local stack driver, regression repo/profiles, tenancy keys,
+  commit gate, observability order) resolve from each repo's .aif/config.yml —
+  the pack is org-agnostic; a filled config makes it yours.
+
+# Constitution — composed into every phase's system prompt.
+constitution: ./ETHOS.md
+
+# Capability roles (copied from aif-sdlc, which carried them from
+# ai-factory/roles). A phase runs under exactly one role's envelope.
+roles:
+  - ./roles/implementer.yaml    # write:true,  network:read-only, envelope:all
+  - ./roles/reviewer.yaml       # write:false, network:read-only, envelope:[read,grep,glob,bash]
+  - ./roles/orchestrator.yaml   # write:true,  network:true,       envelope:all
+
+# Runnable content each phase drives. `slash` = an installed ai-factory
+# skill; `prompt` = an inline template (the loader takes the text verbatim).
+skills:
+  - { id: prep,      kind: slash, command: /feature-prep }
+  - { id: implement, kind: slash, command: /incremental-implementation }
+  - id: verify
+    kind: prompt
+    template: |
+      Verify the change end-to-end before it goes to review. Evidence, not
+      claims: finish by reporting what you ran and what it produced (test
+      output, report paths), never a bare "verified".
+
+      Read `.aif/config.yml` first — it decides the verification tier:
+
+      1. Determine blast radius. Diff the working branches across every repo
+         listed under `repos:`. One repo touched → repo-local. More than one
+         repo, or a shared contract (schema, API surface, event shape,
+         anything under `org.spec_registry`) → cross-cutting.
+
+      2. Cross-cutting AND `regression:` configured → delegate to the
+         kind-regression-runner agent. Pick the cheapest profile in
+         `regression.profiles` that exercises the services you touched, and
+         say which profile you picked and why. If the run fails, triage per
+         the agent's report — do not advance with a red suite.
+
+      3. Repo-local, or no `regression:` section → run the current repo's own
+         test suite and say explicitly that org-level regression was skipped
+         and why (single-repo change, or no suite configured).
+
+      4. If the change needs hands-on verification against running services
+         (a new endpoint, a UI flow, service-to-service behavior), use the
+         local-stack-runner agent with the `local_stack:` config to bring up
+         the minimum set of services that closes the loop — then actually
+         exercise the flow and capture the result.
+
+      5. If `tenancy.keys` is configured and the change touches any of those
+         keys' flows, the evidence must include a cross-tenant isolation
+         check: show that data scoped to one tenant is not reachable with
+         another tenant's identity.
+
+  - { id: review,    kind: slash, command: /review }
+  - { id: ship,      kind: slash, command: /ship }
+
+# Gate predicates. `command` gates run on the host only for a pack the
+# operator has explicitly trusted; untrusted packs fail them closed.
+gates:
+  - { id: tests_pass,           kind: command, run: "make test" }
+  - { id: no_blocking_findings, kind: review,  role: reviewer }
+
+# The pipeline. Each phase: a skill under a role, gated on exit.
+# No grill/design-review phase: packs don't branch — /feature-prep already
+# escalates to /grill-feature when its architectural criteria fire.
+# No separate shepherd phase: /ship owns the PR through CI-green and
+# review-comment resolution (see ETHOS: "a PR is not done until…").
+phases:
+  - { id: prep,      skill: prep,      role: implementer }
+  - { id: implement, skill: implement, role: implementer,  gate: tests_pass, onFail: { retry: 2 } }
+  - { id: verify,    skill: verify,    role: orchestrator }
+  - { id: review,    skill: review,    role: reviewer,     gate: no_blocking_findings, onFail: halt }
+  - { id: ship,      skill: ship,      role: orchestrator }

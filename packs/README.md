@@ -17,6 +17,7 @@ available to every codeoid that points at this registry.
 | Pack | What it is |
 |------|------------|
 | [`aif-sdlc/`](aif-sdlc/) | Spec → architect → implement → review → ship, governed per phase. The AIF spec-driven lifecycle, expressed as a codeoid pack. |
+| [`org-dev/`](org-dev/) | Prep → implement → verify → review → ship. Day-to-day feature delivery over the org-workflow skills — local-stack + org-regression verification, tenancy checks, PR shepherded to green — with every org specific resolving from `.aif/config.yml`. |
 
 ## The index
 

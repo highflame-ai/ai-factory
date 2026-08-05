@@ -21,9 +21,11 @@ Wired into `aif check` (the CI/pre-commit gate) so the registry can't drift.
 Pure standard library. Read-only.
 
 The pack.yaml parser handles exactly the shapes packs use: top-level scalars, a
-`>` folded scalar, block lists of `- ./path` or `- { flow map }`, and inline
-comments. It fails loud on anything outside that; packs are authored to this
-subset (documented in packs/CLAUDE.md).
+`>` folded scalar, block lists of `- ./path` or `- { flow map }`, block-mapping
+list items (`- key: value` continuation lines, values optionally `|` literal
+scalars — how a `kind: prompt` skill carries its multi-line template), and
+inline comments. It fails loud on anything outside that; packs are authored to
+this subset (documented in packs/CLAUDE.md).
 """
 
 import os
@@ -102,6 +104,61 @@ def _parse_flow_map(s):
     return out
 
 
+def _parse_block_item(lines, i, dash_indent, first_body):
+    """Parse a block-mapping list item: `- key: value` plus continuation
+    `key: value` lines indented deeper than the dash. A value of `|` / `|-` /
+    `|+` starts a literal block scalar, captured verbatim (dedented to its
+    first content line) — this is how a `kind: prompt` skill carries its
+    multi-line template. Returns (item_dict, index_of_line_after_item)."""
+    item = {}
+
+    def consume_literal(idx, key_indent):
+        content, content_indent = [], None
+        while idx < len(lines):
+            raw = lines[idx]
+            if raw.strip():
+                ind = len(raw) - len(raw.lstrip())
+                if ind <= key_indent:
+                    break
+                if content_indent is None:
+                    content_indent = ind
+                content.append(raw[content_indent:])
+            else:
+                content.append("")
+            idx += 1
+        while content and not content[-1]:
+            content.pop()
+        return "\n".join(content), idx
+
+    def handle(key_indent, body, idx):
+        key, _, value = body.partition(":")
+        value = _strip_comment(value)
+        if value in ("|", "|-", "|+"):
+            text, idx = consume_literal(idx, key_indent)
+            item[key.strip()] = text
+        else:
+            item[key.strip()] = _unquote(value)
+        return idx
+
+    i = handle(dash_indent + 2, first_body, i)
+    while i < len(lines):
+        raw = lines[i]
+        if not raw.strip():
+            i += 1
+            continue
+        ind = len(raw) - len(raw.lstrip())
+        if ind <= dash_indent:
+            break
+        body = raw.strip()
+        if ":" not in body:
+            raise ValueError(f"block-mapping item line is not 'key: value': {body!r}")
+        i = handle(ind, body, i + 1)
+    return item, i
+
+
+_BLOCK_ITEM_RE = re.compile(r"^[A-Za-z_][\w-]*:(\s|$)")
+
+
 def parse_pack(path):
     """Parse pack.yaml into {scalars..., roles:[paths], skills/gates/phases:[dicts]}."""
     pack = {"roles": [], "skills": [], "gates": [], "phases": []}
@@ -132,11 +189,14 @@ def parse_pack(path):
                 pack[key] = _unquote(value)
                 cur_list = None
         elif body.startswith("- ") and cur_list:
-            item = _strip_comment(body[2:].strip())
+            item = body[2:].strip()
             if item.startswith("{"):
-                pack[cur_list].append(_parse_flow_map(item))
+                pack[cur_list].append(_parse_flow_map(_strip_comment(item)))
+            elif _BLOCK_ITEM_RE.match(item):
+                obj, i = _parse_block_item(lines, i, indent, item)
+                pack[cur_list].append(obj)
             else:
-                pack[cur_list].append(_unquote(item))
+                pack[cur_list].append(_unquote(_strip_comment(item)))
     return pack
 
 

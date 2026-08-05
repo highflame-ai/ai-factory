@@ -54,7 +54,18 @@ phases:                          # the pipeline — at least one
 
 **Field reference**
 - `skills[]` — `{ id, kind }` where `kind: slash` needs `command` (an installed
-  skill, e.g. `/spec`) and `kind: prompt` needs `template` (inline text).
+  skill, e.g. `/spec`) and `kind: prompt` needs `template` (inline text — the
+  loader takes the string verbatim, it is NOT a file path). A multi-line
+  template is written as a block-mapping list item with a `|` literal scalar,
+  which the registry's validator also accepts:
+
+  ```yaml
+  - id: verify
+    kind: prompt
+    template: |
+      First line of the prompt.
+      Second line.
+  ```
 - `gates[]` — see below. Referenced by a phase's `gate` (exit) or `entryGate`.
 - `phases[]` — `id` (unique), `skill` (a `skills[]` id), `role` (a role name),
   optional `kind` (defaults to `skill` when `skill` is set; use `noop` for a

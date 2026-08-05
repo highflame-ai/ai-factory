@@ -1,0 +1,17 @@
+# Role: reviewer — the single source of truth for what a reviewer MAY do.
+# Consumed by `aif compile`: emitted as Claude agent-frontmatter checks,
+# Codex config profiles, Copilot instructions, and (optionally) Cedar policy.
+name: reviewer
+summary: Read-only analysis of code, diffs, and artifacts. Produces findings reports. Never mutates the working tree.
+write: false
+network: read-only   # fetching the artifact under review (gh pr view/diff, bot comments) — never posting
+envelope:
+  - read
+  - grep
+  - glob
+  - bash        # no working-tree mutations; running tests/linters and disposable-environment
+                # rehearsal (e.g. migration-analyzer's throwaway DB) are allowed
+exceptions:
+  gemini-reviewer:
+    add: [edit, write]
+    reason: applies accepted review-bot comments directly to the working tree

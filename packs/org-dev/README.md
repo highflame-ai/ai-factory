@@ -45,9 +45,13 @@ and the pipeline parks for a human. Skill linking follows the same opt-in.
    the pack references them by slash command.
 2. `codeoid pack registry add <this repo's git URL> --name ai-factory`
 3. `codeoid pack install org-dev --trust`
-4. In each code repo: `/init`, then fill `.aif/config.yml` — start from a
+4. Give each code repo a `.aif/config.yml` — start from a
    [`skills/presets/`](../../skills/presets/) stack shape, or from your org's
    own filled seed (keep real hostnames/channels/service names in **your**
    repo, not this one; see the presets README's "stack shape, not company
-   configuration" rule).
+   configuration" rule). Copies per repo work, but the zero-drift pattern is
+   a single org-wide config file that every repo's `.aif/config.yml`
+   **symlinks to** — skills read through the link transparently. With a
+   shared config there's no per-repo `primary:` flag; the repo you invoke
+   the pipeline in is the primary for that run.
 5. `codeoid pipeline run --pack org-dev --goal "<task>"`

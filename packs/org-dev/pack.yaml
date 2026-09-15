@@ -1,7 +1,7 @@
 schema: codeoid/pack@v1
 id: org-dev
 name: Org Feature Delivery
-version: 0.1.0
+version: 0.2.0
 description: >
   Day-to-day feature delivery, governed per phase: prep (spec-registry +
   test-placement decision) → implement (thin vertical slices) → verify
@@ -75,9 +75,17 @@ gates:
 # escalates to /grill-feature when its architectural criteria fire.
 # No separate shepherd phase: /ship owns the PR through CI-green and
 # review-comment resolution (see ETHOS: "a PR is not done until…").
+#
+# The review phase runs codeoid's FINDINGS LOOP (codeoid docs/findings-loop.md):
+# the reviewer stays read-only and reports structured findings; for every
+# blocking finding the engine runs a fix leg under the implementer role,
+# requires a disposition per finding (fixed / not a finding / declined /
+# deferred, reason required unless fixed), re-runs `make test`, then re-runs
+# the reviewer to verify — so `no_blocking_findings` is a real verdict, not a
+# human stub. Defaults: blocking = critical + high, two fix legs.
 phases:
   - { id: prep,      skill: prep,      role: implementer }
   - { id: implement, skill: implement, role: implementer,  gate: tests_pass, onFail: { retry: 2 } }
   - { id: verify,    skill: verify,    role: orchestrator }
-  - { id: review,    skill: review,    role: reviewer,     gate: no_blocking_findings, onFail: halt }
+  - { id: review,    skill: review,    role: reviewer,     gate: no_blocking_findings, onFail: halt, findings: { fixWith: implementer, gate: tests_pass } }
   - { id: ship,      skill: ship,      role: orchestrator }

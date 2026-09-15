@@ -71,7 +71,12 @@ def test_index_freshness_catches_version_drift(tmp_path):
     import shutil
     shutil.copytree(os.path.join(ROOT, "packs"), tmp_path / "packs")
     py = tmp_path / "packs" / "aif-sdlc" / "pack.yaml"
-    py.write_text(py.read_text().replace("version: 0.1.0", "version: 0.2.0"))
+    # Bump to a version the shipped index can never carry — hardcoding the
+    # "next" version made this test a no-op the day the pack actually reached it.
+    import re
+    drifted = re.sub(r"^version: .*$", "version: 99.0.0", py.read_text(), count=1, flags=re.M)
+    assert drifted != py.read_text()
+    py.write_text(drifted)
     manifests = {str(tmp_path / "packs" / "aif-sdlc"): packs.parse_pack(str(py))}
     problems = packs.validate_index(str(tmp_path / "packs"), manifests)
     assert any("version" in p for p in problems)

@@ -1,7 +1,7 @@
 schema: codeoid/pack@v1
 id: aif-sdlc
 name: AIF Spec-Driven SDLC
-version: 0.1.0
+version: 0.2.0
 description: >
   Spec → architect → implement → review → ship, governed per phase. Each phase
   runs a skill under a capability role (the role IS the tool envelope), with the
@@ -33,10 +33,15 @@ gates:
   - { id: tests_pass,           kind: command, run: "make test" }  # runs only for a trusted pack
   - { id: no_blocking_findings, kind: review,  role: reviewer }    # read-only review bench
 
-# The pipeline. Each phase: a skill under a role, gated on exit.
+# The pipeline. Each phase: a skill under a role, gated on exit. The review
+# phase runs codeoid's findings loop (codeoid docs/findings-loop.md): the
+# reviewer stays read-only; blocking findings get a fix leg under the
+# implementer role with an engine-validated disposition per finding and a
+# `make test` gate, then the reviewer re-verifies — `no_blocking_findings` is
+# a real verdict.
 phases:
   - { id: spec,      skill: spec,      role: implementer,  gate: spec_valid,           onFail: halt }
   - { id: architect, skill: architect, role: implementer,  gate: spec_valid,           onFail: halt }
   - { id: implement, skill: implement, role: implementer,  gate: tests_pass,           onFail: { retry: 2 } }
-  - { id: review,    skill: review,    role: reviewer,     gate: no_blocking_findings, onFail: halt }
+  - { id: review,    skill: review,    role: reviewer,     gate: no_blocking_findings, onFail: halt, findings: { fixWith: implementer, gate: tests_pass } }
   - { id: ship,      skill: wrapup,    role: orchestrator }

@@ -16,8 +16,21 @@ way the underlying skill documents.
 | `prep` | `/feature-prep` | implementer | — | Does the spec registry need an entry first? Where do tests belong (org regression vs repo-local)? Escalates to `/grill-feature` itself when its architectural criteria fire. |
 | `implement` | `/incremental-implementation` | implementer | `tests_pass` (`make test`) | Thin vertical slices, one repo at a time, working state at every step. Retries twice on a red gate. |
 | `verify` | inline prompt | orchestrator | — | Blast-radius decision: cross-cutting + `regression:` configured → org regression suite via `kind-regression-runner` (cheapest covering profile); otherwise repo-local tests, stated explicitly. Hands-on flows go through `local-stack-runner` (`local_stack:`). Tenancy-touching changes must demonstrate cross-tenant isolation. |
-| `review` | `/review` | reviewer | `no_blocking_findings` | Read-only multi-agent bench. The role physically cannot write or egress. |
+| `review` | `/review` | reviewer | `no_blocking_findings` | Read-only multi-agent bench, with the **findings loop** (below). The role physically cannot write or egress. |
 | `ship` | `/ship` | orchestrator | — | Reviewer fan-out → go/no-go → PR → CI shepherded to green with review comments resolved (see ETHOS). |
+
+## The findings loop
+
+The review phase declares `findings: { fixWith: implementer, gate: tests_pass }`
+(codeoid `docs/findings-loop.md`). The reviewer keeps its read-only role and
+ends its report with a structured findings block. For every blocking finding
+(critical or high by default) the engine runs a **fix leg on the same session
+under the implementer role**, requires a disposition per finding — fixed, not a
+finding, declined, or deferred, with a reason unless fixed — re-runs
+`make test`, then **re-runs the reviewer** to verify the fixes and name what
+remains open. Up to two fix legs; anything still blocking fails
+`no_blocking_findings` and the boundary halt shows the ledger. Nothing about
+the roles changes: the reviewer never writes, and the fixer never approves.
 
 ## Config keys each phase consumes
 

@@ -3,11 +3,11 @@ schema: codeoid/pack-index@v1
 packs:
   - id: "aif-sdlc"
     name: "AIF Spec-Driven SDLC"
-    version: "0.1.0"
+    version: "0.2.0"
     path: "packs/aif-sdlc"
     description: "Spec → architect → implement → review → ship, governed per phase. Each phase runs a skill under a capability role (the role IS the tool envelope), with the ETHOS constitution composed into every phase. The reviewer phase physically cannot write or egress; the implement phase can."
   - id: "org-dev"
     name: "Org Feature Delivery"
-    version: "0.1.0"
+    version: "0.2.0"
     path: "packs/org-dev"
     description: "Day-to-day feature delivery, governed per phase: prep (spec-registry + test-placement decision) → implement (thin vertical slices) → verify (local stack + org regression suite when the change is cross-cutting) → review (read-only bench) → ship (reviewer fan-out, PR, CI shepherding). Org specifics (local stack driver, regression repo/profiles, tenancy keys, commit gate, observability order) resolve from each repo's .aif/config.yml — the pack is org-agnostic; a filled config makes it yours."

@@ -73,6 +73,15 @@ phases:                          # the pipeline — at least one
   `gate`/`entryGate`, and `onFail`.
 - `onFail` — `halt` (default; park for a human), `abort` (hard-fail), or
   `{ retry: <n> }` (re-run up to n times).
+- `findings` (optional, on a review-style phase) — turns on codeoid's
+  **findings loop** (codeoid `docs/findings-loop.md`):
+  `{ fixWith: <write-capable role>, blocking: [critical, high], maxRounds: 2, gate: tests_pass }`.
+  The phase keeps its read-only role and must end its report with a fenced
+  `findings` JSON block; the engine runs a fix leg under `fixWith` for every
+  blocking finding, requires a disposition per finding (validated, no bare
+  deferrals), runs `gate` on the fix leg, then re-runs the phase to verify.
+  A `kind: review` gate on such a phase is a real verdict (no blocking finding
+  open). `maxRounds: 0` = audit only. The loader refuses a read-only `fixWith`.
 
 ## 3. Write the roles (`roles/*.yaml`)
 

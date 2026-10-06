@@ -37,7 +37,7 @@ This skill checks five vendored sync surfaces (see "Vendored sync surfaces" belo
 - Project templates dir: !`ls .aif/templates/ 2>/dev/null || echo "No .aif/templates/ directory — run /init first"`
 - Toolkit templates dir: !`ls ~/.claude/skills/templates/ 2>/dev/null || echo "Toolkit templates not found at ~/.claude/skills/templates/"`
 - Project ETHOS: !`test -f .aif/ETHOS.md && echo "present" || echo "absent — run /init"`
-- Project workflow runtime: !`ls .aif/workflows/*.workflow.js 2>/dev/null || echo "no .aif/workflows/ runtime — run /init"`
+- Project workflow runtime: !`ls .aif/workflows 2>/dev/null | grep '\.workflow\.js$' | sed 's|^|.aif/workflows/|' | grep . || echo "no .aif/workflows/ runtime — run /init"`
 - Current directory: !`pwd`
 
 ## Input

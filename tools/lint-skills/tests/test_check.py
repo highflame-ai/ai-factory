@@ -635,3 +635,27 @@ def test_symlink_outside_root_is_excluded(tmp_path):
     assert "realskill/SKILL.md" in result.stdout
     # ...but the symlink escaping the scan root is excluded.
     assert "sneaky/SKILL.md" not in result.stdout
+
+
+def test_skill_command_ungrantable_flagged(tmp_path):
+    """codeoid #348: a wildcard, a CLI-splitting `table(...)" …`, and an
+    unbalanced `)` are each flagged on their line; prose about `!` is not."""
+    root = _stage(tmp_path, "skill-command-ungrantable")
+    result = _run(root)
+    assert result.returncode > 0, result.stdout
+    lines = [ln for ln in result.stdout.splitlines() if " skill-command-grantable:" in ln]
+    assert len(lines) == 3, result.stdout
+    assert "wildcard" in lines[0]
+    assert "split" in lines[1]
+    assert "unbalanced" in lines[2]
+    assert f"skill-command-ungrantable/SKILL.md:{_line_of('skill-command-ungrantable', 'gcloud run')}:" in lines[1]
+
+
+def test_skill_command_grantable_is_clean(tmp_path):
+    """codeoid #348: commands that stay one exact Bash(…) rule — including a
+    quoted "(…)" at the end — produce no finding."""
+    root = _stage(tmp_path, "skill-command-grantable-ok")
+    result = _run(root)
+    lines = [ln for ln in result.stdout.splitlines() if " skill-command-grantable:" in ln]
+    assert lines == [], result.stdout
+

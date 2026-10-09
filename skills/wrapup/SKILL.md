@@ -14,7 +14,7 @@ You are closing out a completed feature after it has been merged. This skill ens
 
 ## Context
 
-- Active specs: !`grep -rl 'status: approved\|status: in-progress\|status: complete' .aif/specs/*/requirement.md 2>/dev/null | tail -20 || echo "No specs found"`
+- Active specs: !`grep -rl --include=requirement.md 'status: approved\|status: in-progress\|status: complete' .aif/specs 2>/dev/null | tail -20 || echo "No specs found"`
 - Knowledge directory: !`ls .aif/knowledge/ 2>/dev/null || echo "No knowledge directory"`
 - Current branch: !`git branch --show-current 2>/dev/null || echo "Not a git repo"`
 - Recent merges: !`git log --oneline --merges -10 2>/dev/null || echo "No merge history"`

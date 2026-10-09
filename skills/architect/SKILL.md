@@ -15,7 +15,7 @@ You are designing architecture and breaking a requirement into implementable tas
 ## Context
 
 - Task template: !`cat .aif/templates/task-template.md 2>/dev/null || cat ~/.claude/skills/templates/task-template.md 2>/dev/null || echo "No task template found"`
-- Active specs: !`grep -rl 'status: draft\|status: approved\|status: in-progress' .aif/specs/*/requirement.md 2>/dev/null | head -20 || echo "No active specs"`
+- Active specs: !`grep -rl --include=requirement.md 'status: draft\|status: approved\|status: in-progress' .aif/specs 2>/dev/null | head -20 || echo "No active specs"`
 
 **Context files loaded on demand**: `.aif/context/architecture.md` and `.aif/context/conventions.md` are loaded by Step 1 below — **skip the Read if they are already in the current conversation** (e.g., when invoked from `/proceed`, which preloads them at Phase 0).
 

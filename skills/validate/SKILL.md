@@ -14,7 +14,7 @@ You are validating AIF artifacts to ensure quality before advancing to the next 
 
 ## Context
 
-- Active specs: !`grep -rl 'status: draft\|status: approved\|status: in-progress' .aif/specs/*/requirement.md 2>/dev/null | head -20 || echo "No active specs"`
+- Active specs: !`grep -rl --include=requirement.md 'status: draft\|status: approved\|status: in-progress' .aif/specs 2>/dev/null | head -20 || echo "No active specs"`
 
 ## Input
 

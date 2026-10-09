@@ -853,6 +853,85 @@ def check_sync_surface_parity(root: Path) -> list[Finding]:
     return findings
 
 
+# An inline substitution `!`<command>`` runs when the skill expands. codeoid
+# grants one as a `Bash(<command>)` permission rule, which also covers the
+# agent's own Bash tool — so it refuses (and an unattended run can never run)
+# a command that would not stay ONE exact rule. Same extraction as codeoid:
+# one line, no backticks, first token shaped like an executable.
+INLINE_SUBSTITUTION_RE = re.compile(r"!`([^`\n]+)`")
+INLINE_ARGV0_RE = re.compile(r"^[A-Za-z0-9_./~=-]+$")
+
+
+def _split_allowed_tools_like_cli(rule_list: str) -> list[str]:
+    """The Claude CLI's ``--allowedTools`` splitter: outside parentheses a comma
+    or space ends a rule, and it keeps ONE in-parens flag, not a depth — ``(``
+    sets it, any ``)`` clears it. Mirrors codeoid's splitAllowedToolsLikeCli."""
+    out: list[str] = []
+    cur = ""
+    in_parens = False
+    for ch in rule_list:
+        if ch == "(":
+            in_parens = True
+        elif ch == ")":
+            in_parens = False
+        elif not in_parens and ch in ", ":
+            if cur:
+                out.append(cur)
+            cur = ""
+            continue
+        cur += ch
+    if cur:
+        out.append(cur)
+    return out
+
+
+def ungrantable_reason(command: str) -> str | None:
+    """Why codeoid can't grant ``command`` as one exact ``Bash(…)`` rule, or
+    None. Mirrors codeoid's isUngrantableSkillCommand (src/daemon/skill-command.ts)."""
+    if "*" in command:
+        return "a '*' wildcard"
+    if re.search(r"\\[()]", command) or command.endswith("\\"):
+        return "a backslash before a paren or at the end"
+    depth = 0
+    for ch in command:
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth < 0:
+                return "unbalanced parentheses"
+    if depth != 0:
+        return "unbalanced parentheses"
+    rule = f"Bash({command})"
+    if _split_allowed_tools_like_cli(rule) != [rule]:
+        return "text after an inner ')' (the rule would split into extra rules)"
+    return None
+
+
+def check_inline_substitution_grantable(text: str, rel: str) -> list[Finding]:
+    """Flag an inline ``!`cmd``` substitution codeoid can never grant (codeoid
+    #348): a wildcard, or a command whose ``Bash(cmd)`` rule the CLI would
+    split. Approving one would let the agent run more than that command
+    unasked, so codeoid refuses it and the skill fails on expansion."""
+    findings: list[Finding] = []
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        for match in INLINE_SUBSTITUTION_RE.finditer(line):
+            command = match.group(1).strip()
+            argv0 = command.split()[0] if command.split() else ""
+            if not command or not INLINE_ARGV0_RE.match(argv0):
+                continue  # prose that merely documents the `!` syntax
+            reason = ungrantable_reason(command)
+            if reason:
+                findings.append(
+                    Finding(
+                        rel, lineno, "skill-command-grantable",
+                        f"inline !`…` command has {reason} — codeoid can't grant it "
+                        "as one exact Bash(…) rule, so the skill fails; name a plain command",
+                    )
+                )
+    return findings
+
+
 def run(root: Path) -> list[Finding]:
     sentinels = load_sentinels(SENTINELS_FILE)
     # REQ-436 ADR-4: read the sourced telemetry partials ONCE per run (never
@@ -884,6 +963,7 @@ def run(root: Path) -> list[Finding]:
         findings.extend(check_cross_fence_fn(text, rel))
         findings.extend(check_cross_fence_var(text, rel))
         findings.extend(check_forge_direct_gh(text, rel))
+        findings.extend(check_inline_substitution_grantable(text, rel))
     # Per-root (not per-SKILL.md): agent model: drift vs the config render (BR-5).
     findings.extend(check_agent_model_drift(root))
     # Per-root (REQ-525 AC4): /init copy list vs /template-drift checked list parity.

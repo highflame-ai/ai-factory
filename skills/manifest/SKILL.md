@@ -19,8 +19,8 @@ Unlike `/status`, which reconstructs its view from the **local** `.aif/` checkou
 ## Context
 
 - Current branch: !`git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "(not a git repo)"`
-- Local origin `feat/REQ-*` refs: !`git branch -r --list 'origin/feat/REQ-*' 2>/dev/null | grep -c . || echo 0`
-- gh CLI: !`command -v gh >/dev/null 2>&1 && echo "installed (auth + network checked at run)" || echo "not installed — branch-only"`
+- Local origin `feat/REQ-*` refs: !`git branch -r 2>/dev/null | grep -c 'origin/feat/REQ-' || true`
+- gh CLI: !`command -v gh >/dev/null 2>&1 && echo "installed — auth + network checked at run" || echo "not installed — branch-only"`
 
 ## Input
 

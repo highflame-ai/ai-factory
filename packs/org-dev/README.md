@@ -36,7 +36,7 @@ the roles changes: the reviewer never writes, and the fixer never approves.
 
 | Key | Consumed by | Absent → |
 |---|---|---|
-| `org.spec_registry` | prep, ship | no registry gate; prep collapses to `NO_UPDATE` |
+| `org.spec_registry` | prep, review, ship | no registry gate; prep collapses to `NO_UPDATE`; review checks the diff against linked issues / REQs only |
 | `regression:` (`repo`, `run_command`, `profiles`) | prep, verify | every test is repo-local, stated explicitly |
 | `local_stack:` (`dir`, `up/down/logs_command`) | verify | agent inspects the repo for a stack driver and asks before running |
 | `tenancy.keys` | verify, review, ship | tenant-isolation checks skipped, stated in the report |

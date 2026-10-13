@@ -63,7 +63,22 @@ Sensitive surfaces always force **Full** regardless of size — the blast radius
 
 ### Step 2c: Spec adherence input (when a spec is linked)
 
-If the branch, PR, or argument references a REQ (branch name `feat/REQ-…`, PR body, or the argument itself), read that spec's `requirement.md` acceptance criteria and add to EVERY dispatched agent's inputs: the acceptance criteria list, plus the instruction "flag (a) any acceptance criterion the diff does not satisfy, and (b) any significant implemented behavior the spec never asked for — unrequested scope is a finding, not a bonus." Skip silently when no spec is linked.
+A change's spec is wherever the org keeps it, not only an AIF REQ. Collect every source that resolves, from the argument, branch name, commit messages, and PR body:
+
+| Source | How it is referenced | What to read |
+|---|---|---|
+| AIF REQ | `feat/REQ-…` branch, `REQ-<id>` in argument / PR body | that spec's `requirement.md` acceptance criteria |
+| Spec registry entry | an entry ID that exists in the file at `org.spec_registry` in `.aif/config.yml` (e.g. a capability or invariant ID cited in a commit or the PR body) | the entry, plus the doc its own pointer field names (one hop) |
+| Linked issue | `Closes #N` / `Fixes owner/repo#N` / issue URL in the PR body or commits | the issue body and its discussion (`gh issue view <n> --json title,body,comments` when `aif_forge_provider` is `github`; on other forges use that forge's CLI, or record the issue as unresolved) |
+| ADR | an ADR path or number cited by any source above, resolved under `org.adr_dir` | its decision and consequences sections |
+
+Follow references **one hop** (an issue that cites an ADR pulls in that ADR) and no further. Only read registry entries whose IDs actually appear in those references; never scan the whole registry for anything that looks related.
+
+From what resolved, build one numbered acceptance-criteria list, each item tagged with its source, including the negative ones (what must be rejected, what must never happen, what is out of scope). Add to EVERY dispatched agent's inputs: that list, plus the instruction "flag (a) any acceptance criterion the diff does not satisfy, (b) any significant implemented behavior the spec never asked for — unrequested scope is a finding, not a bonus — and (c) any spec text the diff makes stale (doc follow-up, not a code defect)."
+
+**Hand the agents the sources, not your reading of them.** The criteria list is a checklist you derive from the source text. Do not add the implementer's rationale, "this deviation is deliberate", or a summary of what was built. Review agents start with a fresh context, and that is most of their value. When `/review` runs as a pack phase it shares a session with the implementer (codeoid runs every phase as a turn on the run's bound session), so this hand-off is the only thing keeping the bench fresh. A deliberate deviation still comes back as a finding; whoever acts on the review resolves it by changing either the code or the spec, never by dropping it.
+
+Record in the report header which sources resolved and which pointers did not. Skip silently only when there is no pointer at all.
 
 ### Step 2d: Activate domain experts (path-scoped context)
 
@@ -95,7 +110,8 @@ Each agent returns structured findings with severity (Critical/Major/Minor/Nit),
    - **Major**: Should fix before merge (convention violations, missing tests, architectural smells)
    - **Minor**: Nice to fix (style, naming, minor improvements)
    - **Nit**: Optional suggestions
-4. Cross-reference findings against the loaded recent lessons — if a finding matches a known pitfall, escalate its severity by one level (e.g., a Minor finding that matches a prior LESSON becomes a Major). Flag this explicitly in the report.
+4. Spec findings (Step 2c) keep their source tag. A missed or contradicted criterion is Major at least, and Critical when the criterion is a security, tenancy, or "must never" invariant. Stale-spec items are listed separately as doc follow-ups, not as code defects.
+5. Cross-reference findings against the loaded recent lessons — if a finding matches a known pitfall, escalate its severity by one level (e.g., a Minor finding that matches a prior LESSON becomes a Major). Flag this explicitly in the report.
 
 ### Step 5: Present Review
 Display findings organized by file, then by severity within each file. Include a dimension summary at the top so the user can see which of the 5 dimensions have issues at a glance:
